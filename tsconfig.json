@@ -24,11 +24,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@tanstack/react-start": ["./node_modules/@tanstack/react-start/dist/esm/index.d.ts"],
-      "@tanstack/react-start/server": ["./node_modules/@tanstack/react-start/dist/esm/server.d.ts"],
-      "@tanstack/react-start/server-entry": ["./node_modules/@tanstack/react-start/dist/default-entry/esm/server.d.ts"],
-      "@supabase/supabase-js": ["./node_modules/@supabase/supabase-js/dist/index.d.mts", "./node_modules/@supabase/supabase-js/dist/index.d.cts"]
+      "@/*": ["./src/*"]
     }
   }
 }
