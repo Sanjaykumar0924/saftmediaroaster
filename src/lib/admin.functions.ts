@@ -2,13 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function ensureAdmin(context: any) {
-  const { data, error } = await context.supabase
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("role")
-    .eq("user_id", context.userId);
+    .eq("user_id", (context as any).userId);
   if (error) throw new Error(error.message);
   const isAdmin = (data ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin");
-  if (!isAdmin) throw new Error("Forbidden");
+  if (!isAdmin) throw new Error("Forbidden: Admin access required");
 }
 
 const DOMAIN = "saft.local";

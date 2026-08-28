@@ -2,13 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function ensureSuperAdmin(context: any) {
-  const { data, error } = await (context as any).supabase
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", (context as any).userId);
   if (error) throw new Error(error.message);
   const roles = (data ?? []).map((r: any) => r.role);
-  if (!roles.includes("super_admin")) throw new Error("Forbidden: super admin only");
+  if (!roles.includes("super_admin")) throw new Error("Forbidden: Super Admin access required");
   return roles;
 }
 
