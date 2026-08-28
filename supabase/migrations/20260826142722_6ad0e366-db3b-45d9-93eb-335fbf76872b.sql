@@ -1,0 +1,2 @@
+ALTER TABLE public.roster ADD COLUMN IF NOT EXISTS extra_service_id uuid REFERENCES public.extra_services(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS roster_extra_service_id_idx ON public.roster(extra_service_id);
