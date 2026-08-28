@@ -37,10 +37,16 @@ import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 
 export const Route = createFileRoute("/_authenticated/admin/members")({
   beforeLoad: async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw redirect({ to: "/auth", search: { mode: "admin" } as any });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-    if (!(roles ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin")) throw redirect({ to: "/dashboard" });
+    const { data: s } = await supabase.auth.getSession();
+    const user = s.session?.user ?? (await supabase.auth.getUser()).data.user;
+    if (!user) throw redirect({ to: "/auth", search: { mode: "admin" } as any });
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin");
+    if (!isAdmin) {
+      const { data: userRoles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      const stillNotAdmin = !(userRoles ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin");
+      if (stillNotAdmin) throw redirect({ to: "/dashboard" });
+    }
   },
   component: MembersPage,
 });
