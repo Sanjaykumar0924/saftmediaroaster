@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatServiceDate, serviceLabel, servicesByNextDate, toDateOnly } from "@/lib/saft";
+import { cutoffLabel, formatServiceDate, isAvailabilityClosed, serviceLabel, servicesByNextDate, toDateOnly } from "@/lib/saft";
 import type { ServiceType } from "@/lib/saft";
 import { CheckCircle2, XCircle, HelpCircle, CalendarDays, Trash2 } from "lucide-react";
 import { toast } from "sonner";
