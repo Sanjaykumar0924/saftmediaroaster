@@ -80,6 +80,10 @@ function AvailabilityPage() {
   });
 
   const save = async (row: Row, patch: Partial<Row>) => {
+    if (isAvailabilityClosed(row.service, row.date) && !isAdmin && !isSuperAdmin) {
+      toast.error(`Responses closed after ${cutoffLabel(row.service)}`);
+      return;
+    }
     const next = { ...row, ...patch };
     qc.setQueryData<Row[]>(["availability-next", user?.id], (prev) =>
       (prev ?? []).map((r) => (r.service === row.service ? next : r)),
