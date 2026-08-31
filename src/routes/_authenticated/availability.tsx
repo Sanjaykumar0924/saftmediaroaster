@@ -415,6 +415,7 @@ function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Part
           </Button>
           <Button
             size="lg"
+            disabled={closed}
             onClick={() => {
               if (row.status === "unavailable") return;
               setAskReason(true);
