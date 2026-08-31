@@ -41,7 +41,7 @@ const REASONS = [
 ];
 
 function AvailabilityPage() {
-  const { user } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const qc = useQueryClient();
 
   const q = useQuery({
