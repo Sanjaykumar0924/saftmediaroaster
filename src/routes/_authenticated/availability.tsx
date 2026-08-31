@@ -394,9 +394,15 @@ function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Part
       </CardHeader>
       <CardContent className="space-y-4">
         <StatusPill status={row.status} />
-        <div className="flex flex-col gap-3">
+        {closed && (
+          <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm font-medium text-warning">
+            Closed — responses shut after {cutoffLabel(row.service)}. Your saved answer stays as it is.
+          </div>
+        )}
+        <div className={cn("flex flex-col gap-3", closed && "pointer-events-none opacity-50")}>
           <Button
             size="lg"
+            disabled={closed}
             onClick={() => { setAskReason(false); onSave(row, { status: "available" }); }}
             className={cn(
               "min-h-14 w-full rounded-2xl text-base font-semibold transition-all",
