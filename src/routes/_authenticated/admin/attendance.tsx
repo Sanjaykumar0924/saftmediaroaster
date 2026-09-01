@@ -35,10 +35,24 @@ function AttendancePage() {
   const [service, setService] = useState<ServiceType>("sunday_morning");
   const [date, setDate] = useState<string>(toDateOnly(nextServiceDate(service)));
   const [state, setState] = useState<Record<string, Status>>({});
+  const [showAll, setShowAll] = useState(false);
 
   const membersQ = useQuery({
     queryKey: ["attend-members"],
     queryFn: async () => (await supabase.from("profiles").select("*").eq("is_active", true).order("full_name")).data ?? [],
+  });
+
+  // Who is on the roster for this exact service? Only these people get marked.
+  const rosterQ = useQuery({
+    queryKey: ["attend-roster", date, service],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("roster")
+        .select("assigned_user_id, role, camera")
+        .eq("service_date", date)
+        .eq("service_type", service);
+      return (data ?? []).filter((r: any) => r.assigned_user_id);
+    },
   });
 
   const existingQ = useQuery({
@@ -52,18 +66,35 @@ function AttendancePage() {
     },
   });
 
+  const rosterRows = rosterQ.data ?? [];
+  const assignmentByUser = new Map<string, string[]>();
+  for (const r of rosterRows as any[]) {
+    const label = [r.role, r.camera].filter(Boolean).join(" · ");
+    const list = assignmentByUser.get(r.assigned_user_id) ?? [];
+    if (label) list.push(label);
+    assignmentByUser.set(r.assigned_user_id, list);
+  }
+
+  const allMembers = (membersQ.data ?? []) as any[];
+  const rows = showAll ? allMembers : allMembers.filter((m) => assignmentByUser.has(m.id));
+
   const save = async () => {
-    const rows = Object.entries(state).map(([user_id, status]) => ({
-      user_id, status, service_date: date, service_type: service, marked_by: user?.id ?? null,
-    }));
-    if (rows.length === 0) { toast.error("Mark at least one member"); return; }
-    const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "user_id,service_date,service_type" });
+    // Only save marks for people currently listed — never touch other members' records.
+    const visible = new Set(rows.map((m) => m.id));
+    const rowsToSave = Object.entries(state)
+      .filter(([user_id]) => visible.has(user_id))
+      .map(([user_id, status]) => ({
+        user_id, status, service_date: date, service_type: service, marked_by: user?.id ?? null,
+      }));
+    if (rowsToSave.length === 0) { toast.error("Mark at least one member"); return; }
+    const { error } = await supabase.from("attendance").upsert(rowsToSave, { onConflict: "user_id,service_date,service_type" });
     if (error) { toast.error(error.message); return; }
     toast.success("Attendance saved");
     qc.invalidateQueries({ queryKey: ["admin-attend-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-me-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-analytics"] });
   };
+
 
   const CFG: { key: Status; label: string; Icon: any; cls: string }[] = [
     { key: "present", label: "Present", Icon: CheckCircle2, cls: "bg-success text-white hover:bg-success/90" },
@@ -96,20 +127,41 @@ function AttendancePage() {
       </div>
 
       <Card className="shadow-card overflow-hidden">
-        <CardHeader className="bg-gradient-subtle border-b">
-          <CardTitle>{serviceLabel(service)} · {formatServiceDate(date)}</CardTitle>
+        <CardHeader className="bg-gradient-subtle border-b flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>{serviceLabel(service)} · {formatServiceDate(date)}</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {showAll
+                ? "Showing all active members."
+                : `Showing only the ${rows.length} member${rows.length === 1 ? "" : "s"} rostered for this service.`}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowAll((s) => !s)}>
+            {showAll ? "Show rostered only" : "Show all members"}
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Member</TableHead><TableHead>Status</TableHead></TableRow>
+              <TableRow><TableHead>Member</TableHead><TableHead>Assignment</TableHead><TableHead>Status</TableHead></TableRow>
             </TableHeader>
             <TableBody>
-              {(membersQ.data ?? []).map((m: any) => {
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
+                    No one is rostered for this service yet. Build and publish the roster first, or switch to “Show all members”.
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((m: any) => {
                 const st = state[m.id];
+                const assigns = assignmentByUser.get(m.id) ?? [];
                 return (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.full_name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {assigns.length ? assigns.join(", ") : "—"}
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
                         {CFG.map((o) => (
@@ -132,6 +184,7 @@ function AttendancePage() {
           </Table>
         </CardContent>
       </Card>
+
       {existingQ.data && existingQ.data.length > 0 && (
         <p className="text-xs text-muted-foreground">Already recorded: {existingQ.data.length} entries. Saving updates existing rows.</p>
       )}
