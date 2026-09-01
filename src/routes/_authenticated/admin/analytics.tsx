@@ -80,7 +80,7 @@ function AnalyticsPage() {
     },
   });
 
-  useRealtimeInvalidate({ table: "profiles", queryKeys: [["analytics-attendance"]] });
+  useRealtimeInvalidate({ table: "attendance", queryKeys: [["analytics-attendance"]] });
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>();
