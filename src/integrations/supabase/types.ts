@@ -95,6 +95,7 @@ export type Database = {
       attendance: {
         Row: {
           created_at: string
+          extra_service_id: string | null
           id: string
           marked_by: string | null
           notes: string | null
@@ -106,6 +107,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          extra_service_id?: string | null
           id?: string
           marked_by?: string | null
           notes?: string | null
@@ -117,6 +119,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          extra_service_id?: string | null
           id?: string
           marked_by?: string | null
           notes?: string | null
@@ -126,7 +129,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "attendance_extra_service_id_fkey"
+            columns: ["extra_service_id"]
+            isOneToOne: false
+            referencedRelation: "extra_services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       availability: {
         Row: {
