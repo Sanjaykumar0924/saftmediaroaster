@@ -135,11 +135,29 @@ function AttendancePage() {
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <Label className="text-xs">Service</Label>
-            <Select value={service} onValueChange={(v) => { setService(v as any); setDate(toDateOnly(nextServiceDate(v as ServiceType))); }}>
+            <Select
+              value={service}
+              onValueChange={(v) => {
+                setService(v);
+                setState({});
+                if (v.startsWith("extra:")) {
+                  const ex = extras.find((e) => e.id === v.slice(6));
+                  if (ex?.service_date) setDate(ex.service_date);
+                } else {
+                  setDate(toDateOnly(nextServiceDate(v as ServiceType)));
+                }
+              }}
+            >
               <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-              <SelectContent>{SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                {extras.map((e) => (
+                  <SelectItem key={e.id} value={`extra:${e.id}`}>{e.name} · {formatServiceDate(e.service_date)}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
+
           <div>
             <Label className="text-xs">Date</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
