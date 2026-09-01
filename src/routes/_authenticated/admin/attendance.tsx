@@ -169,7 +169,7 @@ function AttendancePage() {
       <Card className="shadow-card overflow-hidden">
         <CardHeader className="bg-gradient-subtle border-b flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>{serviceLabel(service)} · {formatServiceDate(date)}</CardTitle>
+            <CardTitle>{currentExtra ? currentExtra.name : serviceLabel(service as ServiceType)} · {formatServiceDate(date)}</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
               {showAll
                 ? "Showing all active members."
