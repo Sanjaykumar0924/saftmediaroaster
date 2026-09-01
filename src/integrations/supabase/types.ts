@@ -100,7 +100,7 @@ export type Database = {
           marked_by: string | null
           notes: string | null
           service_date: string
-          service_type: Database["public"]["Enums"]["service_type"]
+          service_type: Database["public"]["Enums"]["service_type"] | null
           status: Database["public"]["Enums"]["attendance_status"]
           updated_at: string
           user_id: string
@@ -112,7 +112,7 @@ export type Database = {
           marked_by?: string | null
           notes?: string | null
           service_date: string
-          service_type: Database["public"]["Enums"]["service_type"]
+          service_type?: Database["public"]["Enums"]["service_type"] | null
           status: Database["public"]["Enums"]["attendance_status"]
           updated_at?: string
           user_id: string
@@ -124,7 +124,7 @@ export type Database = {
           marked_by?: string | null
           notes?: string | null
           service_date?: string
-          service_type?: Database["public"]["Enums"]["service_type"]
+          service_type?: Database["public"]["Enums"]["service_type"] | null
           status?: Database["public"]["Enums"]["attendance_status"]
           updated_at?: string
           user_id?: string
