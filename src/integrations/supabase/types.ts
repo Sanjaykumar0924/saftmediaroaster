@@ -95,38 +95,49 @@ export type Database = {
       attendance: {
         Row: {
           created_at: string
+          extra_service_id: string | null
           id: string
           marked_by: string | null
           notes: string | null
           service_date: string
-          service_type: Database["public"]["Enums"]["service_type"]
+          service_type: Database["public"]["Enums"]["service_type"] | null
           status: Database["public"]["Enums"]["attendance_status"]
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          extra_service_id?: string | null
           id?: string
           marked_by?: string | null
           notes?: string | null
           service_date: string
-          service_type: Database["public"]["Enums"]["service_type"]
+          service_type?: Database["public"]["Enums"]["service_type"] | null
           status: Database["public"]["Enums"]["attendance_status"]
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          extra_service_id?: string | null
           id?: string
           marked_by?: string | null
           notes?: string | null
           service_date?: string
-          service_type?: Database["public"]["Enums"]["service_type"]
+          service_type?: Database["public"]["Enums"]["service_type"] | null
           status?: Database["public"]["Enums"]["attendance_status"]
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "attendance_extra_service_id_fkey"
+            columns: ["extra_service_id"]
+            isOneToOne: false
+            referencedRelation: "extra_services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       availability: {
         Row: {

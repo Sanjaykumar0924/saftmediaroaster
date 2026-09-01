@@ -32,10 +32,23 @@ type Status = "present" | "absent" | "late" | "excused";
 function AttendancePage() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const [service, setService] = useState<ServiceType>("sunday_morning");
-  const [date, setDate] = useState<string>(toDateOnly(nextServiceDate(service)));
+  // "sunday_morning" | ... | "extra:<uuid>"
+  const [service, setService] = useState<string>("sunday_morning");
+  const [date, setDate] = useState<string>(toDateOnly(nextServiceDate("sunday_morning")));
   const [state, setState] = useState<Record<string, Status>>({});
   const [showAll, setShowAll] = useState(false);
+
+  const extraId = service.startsWith("extra:") ? service.slice(6) : null;
+  const serviceType = extraId ? null : (service as ServiceType);
+
+  // Admin-created extra services show up in the dropdown automatically.
+  const extrasQ = useQuery({
+    queryKey: ["attend-extra-services"],
+    queryFn: async () =>
+      (await supabase.from("extra_services").select("id, name, service_date").order("service_date", { ascending: false })).data ?? [],
+  });
+  const extras = (extrasQ.data ?? []) as any[];
+  const currentExtra = extras.find((e) => e.id === extraId);
 
   const membersQ = useQuery({
     queryKey: ["attend-members"],
@@ -46,11 +59,9 @@ function AttendancePage() {
   const rosterQ = useQuery({
     queryKey: ["attend-roster", date, service],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("roster")
-        .select("assigned_user_id, role, camera")
-        .eq("service_date", date)
-        .eq("service_type", service);
+      let q = supabase.from("roster").select("assigned_user_id, role, camera");
+      q = extraId ? q.eq("extra_service_id", extraId) : q.eq("service_date", date).eq("service_type", serviceType!);
+      const { data } = await q;
       return (data ?? []).filter((r: any) => r.assigned_user_id);
     },
   });
@@ -58,7 +69,9 @@ function AttendancePage() {
   const existingQ = useQuery({
     queryKey: ["attend-existing", date, service],
     queryFn: async () => {
-      const { data } = await supabase.from("attendance").select("*").eq("service_date", date).eq("service_type", service);
+      let q = supabase.from("attendance").select("*");
+      q = extraId ? q.eq("extra_service_id", extraId) : q.eq("service_date", date).eq("service_type", serviceType!).is("extra_service_id", null);
+      const { data } = await q;
       const map: Record<string, Status> = {};
       for (const r of data ?? []) map[r.user_id] = r.status as Status;
       setState(map);
@@ -84,16 +97,25 @@ function AttendancePage() {
     const rowsToSave = Object.entries(state)
       .filter(([user_id]) => visible.has(user_id))
       .map(([user_id, status]) => ({
-        user_id, status, service_date: date, service_type: service, marked_by: user?.id ?? null,
+        user_id,
+        status,
+        service_date: date,
+        service_type: serviceType,
+        extra_service_id: extraId,
+        marked_by: user?.id ?? null,
       }));
     if (rowsToSave.length === 0) { toast.error("Mark at least one member"); return; }
-    const { error } = await supabase.from("attendance").upsert(rowsToSave, { onConflict: "user_id,service_date,service_type" });
+    const { error } = await supabase
+      .from("attendance")
+      .upsert(rowsToSave as any, { onConflict: "user_id,service_date,service_type,extra_service_id" });
     if (error) { toast.error(error.message); return; }
     toast.success("Attendance saved");
     qc.invalidateQueries({ queryKey: ["admin-attend-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-me-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-analytics"] });
+    existingQ.refetch();
   };
+
 
 
   const CFG: { key: Status; label: string; Icon: any; cls: string }[] = [
@@ -113,11 +135,29 @@ function AttendancePage() {
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <Label className="text-xs">Service</Label>
-            <Select value={service} onValueChange={(v) => { setService(v as any); setDate(toDateOnly(nextServiceDate(v as ServiceType))); }}>
+            <Select
+              value={service}
+              onValueChange={(v) => {
+                setService(v);
+                setState({});
+                if (v.startsWith("extra:")) {
+                  const ex = extras.find((e) => e.id === v.slice(6));
+                  if (ex?.service_date) setDate(ex.service_date);
+                } else {
+                  setDate(toDateOnly(nextServiceDate(v as ServiceType)));
+                }
+              }}
+            >
               <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-              <SelectContent>{SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                {extras.map((e) => (
+                  <SelectItem key={e.id} value={`extra:${e.id}`}>{e.name} · {formatServiceDate(e.service_date)}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
+
           <div>
             <Label className="text-xs">Date</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -129,7 +169,7 @@ function AttendancePage() {
       <Card className="shadow-card overflow-hidden">
         <CardHeader className="bg-gradient-subtle border-b flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>{serviceLabel(service)} · {formatServiceDate(date)}</CardTitle>
+            <CardTitle>{currentExtra ? currentExtra.name : serviceLabel(service as ServiceType)} · {formatServiceDate(date)}</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
               {showAll
                 ? "Showing all active members."
