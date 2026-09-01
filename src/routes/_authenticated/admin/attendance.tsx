@@ -127,20 +127,41 @@ function AttendancePage() {
       </div>
 
       <Card className="shadow-card overflow-hidden">
-        <CardHeader className="bg-gradient-subtle border-b">
-          <CardTitle>{serviceLabel(service)} · {formatServiceDate(date)}</CardTitle>
+        <CardHeader className="bg-gradient-subtle border-b flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>{serviceLabel(service)} · {formatServiceDate(date)}</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {showAll
+                ? "Showing all active members."
+                : `Showing only the ${rows.length} member${rows.length === 1 ? "" : "s"} rostered for this service.`}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowAll((s) => !s)}>
+            {showAll ? "Show rostered only" : "Show all members"}
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Member</TableHead><TableHead>Status</TableHead></TableRow>
+              <TableRow><TableHead>Member</TableHead><TableHead>Assignment</TableHead><TableHead>Status</TableHead></TableRow>
             </TableHeader>
             <TableBody>
-              {(membersQ.data ?? []).map((m: any) => {
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
+                    No one is rostered for this service yet. Build and publish the roster first, or switch to “Show all members”.
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((m: any) => {
                 const st = state[m.id];
+                const assigns = assignmentByUser.get(m.id) ?? [];
                 return (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.full_name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {assigns.length ? assigns.join(", ") : "—"}
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
                         {CFG.map((o) => (
@@ -163,6 +184,7 @@ function AttendancePage() {
           </Table>
         </CardContent>
       </Card>
+
       {existingQ.data && existingQ.data.length > 0 && (
         <p className="text-xs text-muted-foreground">Already recorded: {existingQ.data.length} entries. Saving updates existing rows.</p>
       )}
