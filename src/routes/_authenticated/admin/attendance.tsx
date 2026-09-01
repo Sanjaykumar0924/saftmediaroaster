@@ -35,10 +35,24 @@ function AttendancePage() {
   const [service, setService] = useState<ServiceType>("sunday_morning");
   const [date, setDate] = useState<string>(toDateOnly(nextServiceDate(service)));
   const [state, setState] = useState<Record<string, Status>>({});
+  const [showAll, setShowAll] = useState(false);
 
   const membersQ = useQuery({
     queryKey: ["attend-members"],
     queryFn: async () => (await supabase.from("profiles").select("*").eq("is_active", true).order("full_name")).data ?? [],
+  });
+
+  // Who is on the roster for this exact service? Only these people get marked.
+  const rosterQ = useQuery({
+    queryKey: ["attend-roster", date, service],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("roster")
+        .select("assigned_user_id, role, camera")
+        .eq("service_date", date)
+        .eq("service_type", service);
+      return (data ?? []).filter((r: any) => r.assigned_user_id);
+    },
   });
 
   const existingQ = useQuery({
@@ -52,18 +66,35 @@ function AttendancePage() {
     },
   });
 
+  const rosterRows = rosterQ.data ?? [];
+  const assignmentByUser = new Map<string, string[]>();
+  for (const r of rosterRows as any[]) {
+    const label = [r.role, r.camera].filter(Boolean).join(" · ");
+    const list = assignmentByUser.get(r.assigned_user_id) ?? [];
+    if (label) list.push(label);
+    assignmentByUser.set(r.assigned_user_id, list);
+  }
+
+  const allMembers = (membersQ.data ?? []) as any[];
+  const rows = showAll ? allMembers : allMembers.filter((m) => assignmentByUser.has(m.id));
+
   const save = async () => {
-    const rows = Object.entries(state).map(([user_id, status]) => ({
-      user_id, status, service_date: date, service_type: service, marked_by: user?.id ?? null,
-    }));
-    if (rows.length === 0) { toast.error("Mark at least one member"); return; }
-    const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "user_id,service_date,service_type" });
+    // Only save marks for people currently listed — never touch other members' records.
+    const visible = new Set(rows.map((m) => m.id));
+    const rowsToSave = Object.entries(state)
+      .filter(([user_id]) => visible.has(user_id))
+      .map(([user_id, status]) => ({
+        user_id, status, service_date: date, service_type: service, marked_by: user?.id ?? null,
+      }));
+    if (rowsToSave.length === 0) { toast.error("Mark at least one member"); return; }
+    const { error } = await supabase.from("attendance").upsert(rowsToSave, { onConflict: "user_id,service_date,service_type" });
     if (error) { toast.error(error.message); return; }
     toast.success("Attendance saved");
     qc.invalidateQueries({ queryKey: ["admin-attend-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-me-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-analytics"] });
   };
+
 
   const CFG: { key: Status; label: string; Icon: any; cls: string }[] = [
     { key: "present", label: "Present", Icon: CheckCircle2, cls: "bg-success text-white hover:bg-success/90" },
