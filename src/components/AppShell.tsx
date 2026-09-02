@@ -133,7 +133,7 @@ function useMenuBadges() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, isAdmin, isSuperAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const items = NAV.filter((n) => (n.admin ? isAdmin : true) && (n.memberOnly ? !isAdmin : true));
@@ -219,7 +219,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
               {isAdmin && (
                 <span className="hidden rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary md:inline-flex">
-                  Admin
+                  {isSuperAdmin ? "Super Admin" : "Admin"}
                 </span>
               )}
               <span className="hidden truncate text-sm text-muted-foreground sm:inline">

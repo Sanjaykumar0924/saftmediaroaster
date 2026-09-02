@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function Dashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin, isSuperAdmin } = useAuth();
 
   const next = nextUpcomingService();
 
@@ -92,7 +92,14 @@ function Dashboard() {
     <div className="space-y-6 animate-fade-up sm:space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-sm text-muted-foreground">Welcome back</div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Welcome back</span>
+            {isAdmin && (
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                {isSuperAdmin ? "Super Admin" : "Admin"}
+              </span>
+            )}
+          </div>
           <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
             Hello {profile?.full_name?.split(" ")[0] ?? "there"} 👋
           </h1>
