@@ -14,6 +14,8 @@ import { formatServiceDate, serviceLabel, toDateOnly } from "@/lib/saft";
 import { Printer, CalendarClock, Clock, History, Radio, CalendarDays, Download } from "lucide-react";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+
 
 
 type RosterRow = {
