@@ -73,10 +73,36 @@ function AvailabilityPage() {
   });
 
 
+  // Services this member has been PUBLISHED on — their response is locked while that stands.
+  const lockQ = useQuery({
+    queryKey: ["roster-locks", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const today = toDateOnly(new Date());
+      const { data } = await supabase
+        .from("roster")
+        .select("service_date, service_type, extra_service_id")
+        .eq("assigned_user_id", user!.id)
+        .eq("status", "published")
+        .gte("service_date", today);
+      return data ?? [];
+    },
+  });
+
+  const lockedFixed = useMemo(
+    () => new Set((lockQ.data ?? []).filter((r: any) => !r.extra_service_id).map((r: any) => `${r.service_date}|${r.service_type}`)),
+    [lockQ.data],
+  );
+
   useRealtimeInvalidate({
     table: "availability",
     filter: user ? `user_id=eq.${user.id}` : undefined,
     queryKeys: [["availability-next", user?.id], ["my-avail-upcoming", user?.id]],
+  });
+  useRealtimeInvalidate({
+    table: "roster",
+    filter: user ? `assigned_user_id=eq.${user.id}` : undefined,
+    queryKeys: [["roster-locks", user?.id]],
   });
 
   const save = async (row: Row, patch: Partial<Row>) => {
@@ -109,6 +135,21 @@ function AvailabilityPage() {
     }
   };
 
+  /** Take back a response entirely — allowed unless the member is on a published roster. */
+  const revoke = async (row: Row) => {
+    const { error } = await supabase
+      .from("availability")
+      .delete()
+      .eq("user_id", user!.id)
+      .eq("service_date", row.date)
+      .eq("service_type", row.service);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Response revoked");
+    qc.invalidateQueries({ queryKey: ["availability-next", user?.id] });
+    qc.invalidateQueries({ queryKey: ["my-avail-upcoming"] });
+    qc.invalidateQueries({ queryKey: ["admin-avail"] });
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
       <div>
@@ -120,17 +161,24 @@ function AvailabilityPage() {
 
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {(q.data ?? []).map((row) => (
-          <ServiceCard key={row.service} row={row} onSave={save} />
+          <ServiceCard
+            key={row.service}
+            row={row}
+            onSave={save}
+            onRevoke={revoke}
+            rostered={lockedFixed.has(`${row.date}|${row.service}`)}
+          />
         ))}
       </div>
 
-      <ExtraServices />
+      <ExtraServices rosteredIds={new Set((lockQ.data ?? []).map((r: any) => r.extra_service_id).filter(Boolean))} />
     </div>
   );
 }
 
+
 /** Admin-created services beyond the fixed Sunday/Tuesday ones. */
-function ExtraServices() {
+function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
 
@@ -180,7 +228,20 @@ function ExtraServices() {
     qc.invalidateQueries({ queryKey: ["admin-avail"] });
   };
 
+  const revoke = async (serviceId: string) => {
+    const { error } = await supabase
+      .from("extra_service_availability")
+      .delete()
+      .eq("extra_service_id", serviceId)
+      .eq("user_id", user!.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Response revoked");
+    qc.invalidateQueries({ queryKey: ["extra-availability", user?.id] });
+    qc.invalidateQueries({ queryKey: ["admin-avail"] });
+  };
+
   const services = servicesQ.data ?? [];
+
 
   const removeService = async (id: string, name: string) => {
     if (!window.confirm(`Delete "${name}"? Member responses for it will be removed too.`)) return;
@@ -214,8 +275,11 @@ function ExtraServices() {
               service={s}
               row={mine.get(s.id)}
               onRespond={respond}
+              onRevoke={revoke}
+              rostered={rosteredIds.has(s.id)}
               onDelete={isAdmin ? removeService : undefined}
             />
+
           ))}
         </div>
       )}
@@ -224,11 +288,12 @@ function ExtraServices() {
   );
 }
 
-function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
+function ExtraServiceCard({ service, row, onRespond, onRevoke, rostered, onDelete }: any) {
   const [askReason, setAskReason] = useState(false);
   const [reason, setReason] = useState(row?.unavailable_reason ?? "");
   const [custom, setCustom] = useState("");
   const status = row?.status ?? "pending";
+  const locked = Boolean(rostered);
 
   return (
     <Card className="overflow-hidden shadow-card transition-smooth hover:shadow-elegant">
@@ -250,13 +315,18 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
           )}
         </div>
         <CardTitle className="text-xl sm:text-2xl">{service.name}</CardTitle>
-
       </CardHeader>
       <CardContent className="space-y-4">
         <StatusPill status={status} />
-        <div className="flex flex-col gap-3">
+        {locked && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm font-medium text-primary">
+            Published assignment — availability is locked until this assignment is removed.
+          </div>
+        )}
+        <div className={cn("flex flex-col gap-3", locked && "pointer-events-none opacity-50")}>
           <Button
             size="lg"
+            disabled={locked}
             onClick={() => { setAskReason(false); onRespond(service.id, "available"); }}
             className={cn(
               "min-h-14 w-full rounded-2xl text-base font-semibold",
@@ -269,6 +339,7 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
           </Button>
           <Button
             size="lg"
+            disabled={locked}
             onClick={() => { if (status !== "unavailable") setAskReason(true); }}
             className={cn(
               "min-h-14 w-full rounded-2xl text-base font-semibold",
@@ -280,7 +351,12 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
             <XCircle className="mr-2 h-5 w-5" /> Not Available
           </Button>
         </div>
-        {(askReason || status === "unavailable") && (
+        {row && !locked && (
+          <Button variant="outline" className="w-full" onClick={() => onRevoke(service.id)}>
+            Revoke my response
+          </Button>
+        )}
+        {(askReason || status === "unavailable") && !locked && (
           <div className="space-y-2 rounded-xl border border-destructive/20 bg-destructive/5 p-3">
             <Label className="text-xs font-semibold uppercase tracking-wider text-destructive">Reason (required)</Label>
             <Select
@@ -304,6 +380,7 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
     </Card>
   );
 }
+
 
 function AddExtraServiceDialog({ onCreated }: { onCreated: () => void }) {
   const { user } = useAuth();
