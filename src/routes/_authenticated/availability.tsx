@@ -73,10 +73,36 @@ function AvailabilityPage() {
   });
 
 
+  // Services this member has been PUBLISHED on — their response is locked while that stands.
+  const lockQ = useQuery({
+    queryKey: ["roster-locks", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const today = toDateOnly(new Date());
+      const { data } = await supabase
+        .from("roster")
+        .select("service_date, service_type, extra_service_id")
+        .eq("assigned_user_id", user!.id)
+        .eq("status", "published")
+        .gte("service_date", today);
+      return data ?? [];
+    },
+  });
+
+  const lockedFixed = useMemo(
+    () => new Set((lockQ.data ?? []).filter((r: any) => !r.extra_service_id).map((r: any) => `${r.service_date}|${r.service_type}`)),
+    [lockQ.data],
+  );
+
   useRealtimeInvalidate({
     table: "availability",
     filter: user ? `user_id=eq.${user.id}` : undefined,
     queryKeys: [["availability-next", user?.id], ["my-avail-upcoming", user?.id]],
+  });
+  useRealtimeInvalidate({
+    table: "roster",
+    filter: user ? `assigned_user_id=eq.${user.id}` : undefined,
+    queryKeys: [["roster-locks", user?.id]],
   });
 
   const save = async (row: Row, patch: Partial<Row>) => {
@@ -109,6 +135,21 @@ function AvailabilityPage() {
     }
   };
 
+  /** Take back a response entirely — allowed unless the member is on a published roster. */
+  const revoke = async (row: Row) => {
+    const { error } = await supabase
+      .from("availability")
+      .delete()
+      .eq("user_id", user!.id)
+      .eq("service_date", row.date)
+      .eq("service_type", row.service);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Response revoked");
+    qc.invalidateQueries({ queryKey: ["availability-next", user?.id] });
+    qc.invalidateQueries({ queryKey: ["my-avail-upcoming"] });
+    qc.invalidateQueries({ queryKey: ["admin-avail"] });
+  };
+
   return (
     <div className="space-y-6 animate-fade-up">
       <div>
@@ -120,14 +161,21 @@ function AvailabilityPage() {
 
       <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {(q.data ?? []).map((row) => (
-          <ServiceCard key={row.service} row={row} onSave={save} />
+          <ServiceCard
+            key={row.service}
+            row={row}
+            onSave={save}
+            onRevoke={revoke}
+            rostered={lockedFixed.has(`${row.date}|${row.service}`)}
+          />
         ))}
       </div>
 
-      <ExtraServices />
+      <ExtraServices rosteredIds={new Set((lockQ.data ?? []).map((r: any) => r.extra_service_id).filter(Boolean))} />
     </div>
   );
 }
+
 
 /** Admin-created services beyond the fixed Sunday/Tuesday ones. */
 function ExtraServices() {
