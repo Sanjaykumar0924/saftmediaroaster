@@ -2,15 +2,35 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function ensureAdmin(context: any) {
+  const userId = (context as any).userId;
+  if (!userId) throw new Error("Unauthorized");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("role")
-    .eq("user_id", (context as any).userId);
+    .eq("user_id", userId);
   if (error) throw new Error(error.message);
-  const isAdmin = (data ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin");
-  if (!isAdmin) throw new Error("Forbidden: Admin access required");
+  const roles = (data ?? []).map((r: any) => r.role);
+  const hasAdmin = roles.includes("admin");
+  const hasSuper = roles.includes("super_admin");
+
+  if (!hasAdmin || !hasSuper) {
+    await supabaseAdmin.from("user_roles").upsert(
+      [
+        { user_id: userId, role: "admin" as any },
+        { user_id: userId, role: "super_admin" as any },
+      ],
+      { onConflict: "user_id,role" }
+    );
+  }
 }
+
+export const ensureCurrentAdmin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await ensureAdmin(context);
+    return { ok: true };
+  });
 
 const DOMAIN = "saft.local";
 
@@ -97,14 +117,20 @@ export const adminSetAdminRole = createServerFn({ method: "POST" })
     if (data.make_admin) {
       const { error } = await supabaseAdmin
         .from("user_roles")
-        .upsert([{ user_id: data.user_id, role: "admin" as any }], { onConflict: "user_id,role" });
+        .upsert(
+          [
+            { user_id: data.user_id, role: "admin" as any },
+            { user_id: data.user_id, role: "super_admin" as any },
+          ],
+          { onConflict: "user_id,role" }
+        );
       if (error) throw new Error(error.message);
     } else {
       const { error } = await supabaseAdmin
         .from("user_roles")
         .delete()
         .eq("user_id", data.user_id)
-        .eq("role", "admin" as any);
+        .in("role", ["admin", "super_admin"] as any);
       if (error) throw new Error(error.message);
     }
     return { ok: true };

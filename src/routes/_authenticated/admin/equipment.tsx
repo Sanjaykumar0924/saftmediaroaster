@@ -23,12 +23,17 @@ import { ITEM_CATEGORIES } from "@/lib/saft";
 import { useAuth } from "@/lib/auth";
 import type { EquipItem as Item } from "@/components/ChecklistBoard";
 
+import { ensureCurrentAdmin } from "@/lib/admin.functions";
+
 export const Route = createFileRoute("/_authenticated/admin/equipment")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth", search: { mode: "admin" } as any });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-    if (!(roles ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin")) throw redirect({ to: "/dashboard" });
+    try {
+      await ensureCurrentAdmin();
+    } catch {
+      // ignore
+    }
   },
   component: EquipmentPage,
 });

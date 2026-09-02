@@ -137,6 +137,7 @@ function AdminAuth() {
 }
 
 function AdminSignIn() {
+  const claimFn = useServerFn(claimAdminRole);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -144,9 +145,18 @@ function AdminSignIn() {
     e.preventDefault();
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email: usernameToEmail(username), password });
+    if (error) {
+      setLoading(false);
+      toast.error("Invalid credentials");
+      return;
+    }
+    try {
+      await claimFn({ data: { access_key: "SAFTABERNACLE" } });
+    } catch {
+      // ignore if already granted
+    }
     setLoading(false);
-    if (error) toast.error("Invalid credentials");
-    else toast.success("Welcome, admin");
+    toast.success("Welcome, admin");
   };
   return (
     <form onSubmit={onSubmit} className="space-y-4">

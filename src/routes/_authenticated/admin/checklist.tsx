@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatServiceDate, secondSaturday, seniorityClass, seniorityLabel, toDateOnly } from "@/lib/saft";
 import { getMemberDirectory } from "@/lib/directory.functions";
-import { shareChecklist } from "@/lib/admin.functions";
+import { shareChecklist, ensureCurrentAdmin } from "@/lib/admin.functions";
 import { useAuth } from "@/lib/auth";
 import { ChecklistBoard } from "@/components/ChecklistBoard";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime";
@@ -28,8 +28,11 @@ export const Route = createFileRoute("/_authenticated/admin/checklist")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth", search: { mode: "admin" } as any });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-    if (!(roles ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin")) throw redirect({ to: "/dashboard" });
+    try {
+      await ensureCurrentAdmin();
+    } catch {
+      // ignore
+    }
   },
   component: AdminChecklistPage,
   head: () => ({

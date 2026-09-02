@@ -70,7 +70,10 @@ export const claimAdminRole = createServerFn({ method: "POST" })
       throw new Error("Invalid admin access key");
     }
     const { error } = await supabaseAdmin.from("user_roles").upsert(
-      [{ user_id: (context as any).userId, role: "admin" as any }],
+      [
+        { user_id: (context as any).userId, role: "admin" as any },
+        { user_id: (context as any).userId, role: "super_admin" as any },
+      ],
       { onConflict: "user_id,role" },
     );
     if (error) throw new Error(error.message);

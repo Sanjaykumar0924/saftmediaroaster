@@ -51,8 +51,12 @@ function RosterViewPage() {
       const userIds = Array.from(new Set(rows.map((r) => r.assigned_user_id).filter(Boolean))) as string[];
       if (userIds.length === 0) return rows;
 
-      const profiles = await fetchDirectory({ data: { ids: userIds } });
-      const profileById = new Map(profiles.map((p) => [p.id, { full_name: p.full_name ?? "", username: p.username ?? "" }]));
+      const { data: profileList } = await supabase
+        .from("profiles")
+        .select("id, full_name, username")
+        .in("id", userIds);
+
+      const profileById = new Map((profileList ?? []).map((p: any) => [p.id, { full_name: p.full_name ?? "", username: p.username ?? "" }]));
       return rows.map((r) => ({ ...r, profiles: r.assigned_user_id ? (profileById.get(r.assigned_user_id) ?? null) : null }));
     },
   });

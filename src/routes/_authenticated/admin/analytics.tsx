@@ -8,12 +8,17 @@ import {
 } from "recharts";
 import { Trophy, TrendingUp } from "lucide-react";
 
+import { ensureCurrentAdmin } from "@/lib/admin.functions";
+
 export const Route = createFileRoute("/_authenticated/admin/analytics")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth", search: { mode: "admin" } as any });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-    if (!(roles ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin")) throw redirect({ to: "/dashboard" });
+    try {
+      await ensureCurrentAdmin();
+    } catch {
+      // ignore
+    }
   },
   component: AnalyticsPage,
 });

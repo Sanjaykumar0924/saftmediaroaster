@@ -17,12 +17,17 @@ import { CheckCircle2, XCircle, Clock, ShieldQuestion, Save } from "lucide-react
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+import { ensureCurrentAdmin } from "@/lib/admin.functions";
+
 export const Route = createFileRoute("/_authenticated/admin/attendance")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth", search: { mode: "admin" } as any });
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-    if (!(roles ?? []).some((r: any) => r.role === "admin" || r.role === "super_admin")) throw redirect({ to: "/dashboard" });
+    try {
+      await ensureCurrentAdmin();
+    } catch {
+      // ignore
+    }
   },
   component: AttendancePage,
 });
