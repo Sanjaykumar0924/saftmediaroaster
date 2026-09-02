@@ -133,7 +133,7 @@ function useMenuBadges() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, isAdmin, isSuperAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const items = NAV.filter((n) => (n.admin ? isAdmin : true) && (n.memberOnly ? !isAdmin : true));
