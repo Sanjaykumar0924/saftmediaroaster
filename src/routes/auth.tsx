@@ -136,7 +136,6 @@ function AdminAuth() {
 }
 
 function AdminSignIn() {
-  const claimFn = useServerFn(claimAdminRole);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
