@@ -79,24 +79,32 @@ function useMenuBadges() {
     },
   });
 
-  // Newly published rosters the member hasn't looked at yet.
+  // Newly published rosters where THIS member is actually assigned, and that the member hasn't looked at yet.
   const rosterQ = useQuery({
     queryKey: ["unread-roster", user?.id],
     enabled: !!user,
     queryFn: async () => {
       const since = readSeen("roster", user!.id);
-      let q = supabase
+      if (!since) {
+        // First visit on this device: establish a baseline instead of flagging every old roster.
+        window.localStorage.setItem(SEEN_KEY("roster", user!.id), new Date().toISOString());
+        return 0;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const { data } = await supabase
         .from("roster")
         .select("published_at, service_date")
         .eq("status", "published")
+        .eq("assigned_user_id", user!.id)
         .not("published_at", "is", null)
+        .gte("service_date", today)
+        .gt("published_at", since)
         .limit(100);
-      if (since) q = q.gt("published_at", since);
-      const { data } = await q;
-      // one badge count per published service date
+      // one badge count per published service date the member is assigned to
       return new Set((data ?? []).map((r: any) => r.service_date)).size;
     },
   });
+
 
   useRealtimeInvalidate({ table: "messages", queryKeys: [["unread-messages", user?.id]] });
   useRealtimeInvalidate({

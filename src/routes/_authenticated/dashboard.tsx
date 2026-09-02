@@ -77,9 +77,10 @@ function Dashboard() {
     filter: user ? `assigned_user_id=eq.${user.id}` : undefined,
     queryKeys: [["upcoming-roster-me", user?.id], ["all-upcoming-roster"]],
     onChange: (payload) => {
-      if (payload.eventType === "INSERT" && payload.new?.status === "published") {
-        toast.success(`📢 New roster published for ${serviceLabel(payload.new.service_type)}`);
+      if (payload.eventType === "INSERT" && payload.new?.status === "published" && payload.new?.assigned_user_id === user?.id) {
+        toast.success(`📢 You've been assigned for ${serviceLabel(payload.new.service_type)}`);
       }
+
     },
   });
   useRealtimeInvalidate({

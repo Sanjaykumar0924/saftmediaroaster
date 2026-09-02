@@ -14,6 +14,8 @@ import { formatServiceDate, serviceLabel, toDateOnly } from "@/lib/saft";
 import { Printer, CalendarClock, Clock, History, Radio, CalendarDays, Download } from "lucide-react";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth";
+
 
 
 type RosterRow = {
@@ -33,7 +35,9 @@ export const Route = createFileRoute("/_authenticated/roster")({
 });
 
 function RosterViewPage() {
+  const { user } = useAuth();
   const fetchDirectory = useServerFn(getMemberDirectory);
+
   const q = useQuery({
     queryKey: ["all-upcoming-roster"],
     queryFn: async () => {
@@ -66,11 +70,13 @@ function RosterViewPage() {
     queryKeys: [["all-upcoming-roster"], ["upcoming-roster-me"]],
     onChange: (payload) => {
       const row = payload.new ?? payload.old;
-      if (row?.status === "published" && payload.eventType === "INSERT") {
-        toast.success(`📢 New roster published for ${serviceLabel(row.service_type)}`);
+      // Only notify the member when THEY are assigned in a newly published roster.
+      if (row?.status === "published" && payload.eventType === "INSERT" && user && row.assigned_user_id === user.id) {
+        toast.success(`📢 You've been assigned for ${serviceLabel(row.service_type)}`);
       }
     },
   });
+
 
   const today = toDateOnly(new Date());
   const weekEnd = toDateOnly(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
