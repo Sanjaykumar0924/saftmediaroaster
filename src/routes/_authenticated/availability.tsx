@@ -288,11 +288,12 @@ function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
   );
 }
 
-function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
+function ExtraServiceCard({ service, row, onRespond, onRevoke, rostered, onDelete }: any) {
   const [askReason, setAskReason] = useState(false);
   const [reason, setReason] = useState(row?.unavailable_reason ?? "");
   const [custom, setCustom] = useState("");
   const status = row?.status ?? "pending";
+  const locked = Boolean(rostered);
 
   return (
     <Card className="overflow-hidden shadow-card transition-smooth hover:shadow-elegant">
@@ -314,13 +315,18 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
           )}
         </div>
         <CardTitle className="text-xl sm:text-2xl">{service.name}</CardTitle>
-
       </CardHeader>
       <CardContent className="space-y-4">
         <StatusPill status={status} />
-        <div className="flex flex-col gap-3">
+        {locked && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm font-medium text-primary">
+            Published assignment — availability is locked until this assignment is removed.
+          </div>
+        )}
+        <div className={cn("flex flex-col gap-3", locked && "pointer-events-none opacity-50")}>
           <Button
             size="lg"
+            disabled={locked}
             onClick={() => { setAskReason(false); onRespond(service.id, "available"); }}
             className={cn(
               "min-h-14 w-full rounded-2xl text-base font-semibold",
@@ -333,6 +339,7 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
           </Button>
           <Button
             size="lg"
+            disabled={locked}
             onClick={() => { if (status !== "unavailable") setAskReason(true); }}
             className={cn(
               "min-h-14 w-full rounded-2xl text-base font-semibold",
@@ -344,7 +351,12 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
             <XCircle className="mr-2 h-5 w-5" /> Not Available
           </Button>
         </div>
-        {(askReason || status === "unavailable") && (
+        {row && !locked && (
+          <Button variant="outline" className="w-full" onClick={() => onRevoke(service.id)}>
+            Revoke my response
+          </Button>
+        )}
+        {(askReason || status === "unavailable") && !locked && (
           <div className="space-y-2 rounded-xl border border-destructive/20 bg-destructive/5 p-3">
             <Label className="text-xs font-semibold uppercase tracking-wider text-destructive">Reason (required)</Label>
             <Select
@@ -368,6 +380,7 @@ function ExtraServiceCard({ service, row, onRespond, onDelete }: any) {
     </Card>
   );
 }
+
 
 function AddExtraServiceDialog({ onCreated }: { onCreated: () => void }) {
   const { user } = useAuth();
