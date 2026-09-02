@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatServiceDate, serviceLabel, servicesByNextDate, toDateOnly } from "@/lib/saft";
+import { cutoffLabel, formatServiceDate, isAvailabilityClosed, serviceLabel, servicesByNextDate, toDateOnly } from "@/lib/saft";
 import type { ServiceType } from "@/lib/saft";
 import { CheckCircle2, XCircle, HelpCircle, CalendarDays, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -41,7 +41,7 @@ const REASONS = [
 ];
 
 function AvailabilityPage() {
-  const { user } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const qc = useQueryClient();
 
   const q = useQuery({
@@ -80,6 +80,10 @@ function AvailabilityPage() {
   });
 
   const save = async (row: Row, patch: Partial<Row>) => {
+    if (isAvailabilityClosed(row.service, row.date) && !isAdmin && !isSuperAdmin) {
+      toast.error(`Responses closed after ${cutoffLabel(row.service)}`);
+      return;
+    }
     const next = { ...row, ...patch };
     qc.setQueryData<Row[]>(["availability-next", user?.id], (prev) =>
       (prev ?? []).map((r) => (r.service === row.service ? next : r)),
@@ -353,6 +357,8 @@ function AddExtraServiceDialog({ onCreated }: { onCreated: () => void }) {
 }
 
 function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Partial<Row>) => void }) {
+  const { isAdmin, isSuperAdmin } = useAuth();
+  const closed = isAvailabilityClosed(row.service, row.date) && !isAdmin && !isSuperAdmin;
   const [reason, setReason] = useState(row.unavailable_reason ?? "");
   const [customReason, setCustomReason] = useState(
     row.unavailable_reason && !REASONS.includes(row.unavailable_reason) ? row.unavailable_reason : "",
@@ -392,9 +398,15 @@ function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Part
       </CardHeader>
       <CardContent className="space-y-4">
         <StatusPill status={row.status} />
-        <div className="flex flex-col gap-3">
+        {closed && (
+          <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm font-medium text-warning">
+            Closed — responses shut after {cutoffLabel(row.service)}. Your saved answer stays as it is.
+          </div>
+        )}
+        <div className={cn("flex flex-col gap-3", closed && "pointer-events-none opacity-50")}>
           <Button
             size="lg"
+            disabled={closed}
             onClick={() => { setAskReason(false); onSave(row, { status: "available" }); }}
             className={cn(
               "min-h-14 w-full rounded-2xl text-base font-semibold transition-all",
@@ -407,6 +419,7 @@ function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Part
           </Button>
           <Button
             size="lg"
+            disabled={closed}
             onClick={() => {
               if (row.status === "unavailable") return;
               setAskReason(true);

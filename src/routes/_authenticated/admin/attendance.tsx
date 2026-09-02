@@ -37,19 +37,46 @@ type Status = "present" | "absent" | "late" | "excused";
 function AttendancePage() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const [service, setService] = useState<ServiceType>("sunday_morning");
-  const [date, setDate] = useState<string>(toDateOnly(nextServiceDate(service)));
+  // "sunday_morning" | ... | "extra:<uuid>"
+  const [service, setService] = useState<string>("sunday_morning");
+  const [date, setDate] = useState<string>(toDateOnly(nextServiceDate("sunday_morning")));
   const [state, setState] = useState<Record<string, Status>>({});
+  const [showAll, setShowAll] = useState(false);
+
+  const extraId = service.startsWith("extra:") ? service.slice(6) : null;
+  const serviceType = extraId ? null : (service as ServiceType);
+
+  // Admin-created extra services show up in the dropdown automatically.
+  const extrasQ = useQuery({
+    queryKey: ["attend-extra-services"],
+    queryFn: async () =>
+      (await supabase.from("extra_services").select("id, name, service_date").order("service_date", { ascending: false })).data ?? [],
+  });
+  const extras = (extrasQ.data ?? []) as any[];
+  const currentExtra = extras.find((e) => e.id === extraId);
 
   const membersQ = useQuery({
     queryKey: ["attend-members"],
     queryFn: async () => (await supabase.from("profiles").select("*").eq("is_active", true).order("full_name")).data ?? [],
   });
 
+  // Who is on the roster for this exact service? Only these people get marked.
+  const rosterQ = useQuery({
+    queryKey: ["attend-roster", date, service],
+    queryFn: async () => {
+      let q = supabase.from("roster").select("assigned_user_id, role, camera");
+      q = extraId ? q.eq("extra_service_id", extraId) : q.eq("service_date", date).eq("service_type", serviceType!);
+      const { data } = await q;
+      return (data ?? []).filter((r: any) => r.assigned_user_id);
+    },
+  });
+
   const existingQ = useQuery({
     queryKey: ["attend-existing", date, service],
     queryFn: async () => {
-      const { data } = await supabase.from("attendance").select("*").eq("service_date", date).eq("service_type", service);
+      let q = supabase.from("attendance").select("*");
+      q = extraId ? q.eq("extra_service_id", extraId) : q.eq("service_date", date).eq("service_type", serviceType!).is("extra_service_id", null);
+      const { data } = await q;
       const map: Record<string, Status> = {};
       for (const r of data ?? []) map[r.user_id] = r.status as Status;
       setState(map);
@@ -57,18 +84,44 @@ function AttendancePage() {
     },
   });
 
+  const rosterRows = rosterQ.data ?? [];
+  const assignmentByUser = new Map<string, string[]>();
+  for (const r of rosterRows as any[]) {
+    const label = [r.role, r.camera].filter(Boolean).join(" · ");
+    const list = assignmentByUser.get(r.assigned_user_id) ?? [];
+    if (label) list.push(label);
+    assignmentByUser.set(r.assigned_user_id, list);
+  }
+
+  const allMembers = (membersQ.data ?? []) as any[];
+  const rows = showAll ? allMembers : allMembers.filter((m) => assignmentByUser.has(m.id));
+
   const save = async () => {
-    const rows = Object.entries(state).map(([user_id, status]) => ({
-      user_id, status, service_date: date, service_type: service, marked_by: user?.id ?? null,
-    }));
-    if (rows.length === 0) { toast.error("Mark at least one member"); return; }
-    const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "user_id,service_date,service_type" });
+    // Only save marks for people currently listed — never touch other members' records.
+    const visible = new Set(rows.map((m) => m.id));
+    const rowsToSave = Object.entries(state)
+      .filter(([user_id]) => visible.has(user_id))
+      .map(([user_id, status]) => ({
+        user_id,
+        status,
+        service_date: date,
+        service_type: serviceType,
+        extra_service_id: extraId,
+        marked_by: user?.id ?? null,
+      }));
+    if (rowsToSave.length === 0) { toast.error("Mark at least one member"); return; }
+    const { error } = await supabase
+      .from("attendance")
+      .upsert(rowsToSave as any, { onConflict: "user_id,service_date,service_type,extra_service_id" });
     if (error) { toast.error(error.message); return; }
     toast.success("Attendance saved");
     qc.invalidateQueries({ queryKey: ["admin-attend-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-me-month"] });
     qc.invalidateQueries({ queryKey: ["attendance-analytics"] });
+    existingQ.refetch();
   };
+
+
 
   const CFG: { key: Status; label: string; Icon: any; cls: string }[] = [
     { key: "present", label: "Present", Icon: CheckCircle2, cls: "bg-success text-white hover:bg-success/90" },
@@ -87,11 +140,29 @@ function AttendancePage() {
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <Label className="text-xs">Service</Label>
-            <Select value={service} onValueChange={(v) => { setService(v as any); setDate(toDateOnly(nextServiceDate(v as ServiceType))); }}>
+            <Select
+              value={service}
+              onValueChange={(v) => {
+                setService(v);
+                setState({});
+                if (v.startsWith("extra:")) {
+                  const ex = extras.find((e) => e.id === v.slice(6));
+                  if (ex?.service_date) setDate(ex.service_date);
+                } else {
+                  setDate(toDateOnly(nextServiceDate(v as ServiceType)));
+                }
+              }}
+            >
               <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
-              <SelectContent>{SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                {extras.map((e) => (
+                  <SelectItem key={e.id} value={`extra:${e.id}`}>{e.name} · {formatServiceDate(e.service_date)}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
+
           <div>
             <Label className="text-xs">Date</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -101,20 +172,41 @@ function AttendancePage() {
       </div>
 
       <Card className="shadow-card overflow-hidden">
-        <CardHeader className="bg-gradient-subtle border-b">
-          <CardTitle>{serviceLabel(service)} · {formatServiceDate(date)}</CardTitle>
+        <CardHeader className="bg-gradient-subtle border-b flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle>{currentExtra ? currentExtra.name : serviceLabel(service as ServiceType)} · {formatServiceDate(date)}</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {showAll
+                ? "Showing all active members."
+                : `Showing only the ${rows.length} member${rows.length === 1 ? "" : "s"} rostered for this service.`}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowAll((s) => !s)}>
+            {showAll ? "Show rostered only" : "Show all members"}
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Member</TableHead><TableHead>Status</TableHead></TableRow>
+              <TableRow><TableHead>Member</TableHead><TableHead>Assignment</TableHead><TableHead>Status</TableHead></TableRow>
             </TableHeader>
             <TableBody>
-              {(membersQ.data ?? []).map((m: any) => {
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
+                    No one is rostered for this service yet. Build and publish the roster first, or switch to “Show all members”.
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.map((m: any) => {
                 const st = state[m.id];
+                const assigns = assignmentByUser.get(m.id) ?? [];
                 return (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.full_name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {assigns.length ? assigns.join(", ") : "—"}
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
                         {CFG.map((o) => (
@@ -137,6 +229,7 @@ function AttendancePage() {
           </Table>
         </CardContent>
       </Card>
+
       {existingQ.data && existingQ.data.length > 0 && (
         <p className="text-xs text-muted-foreground">Already recorded: {existingQ.data.length} entries. Saving updates existing rows.</p>
       )}

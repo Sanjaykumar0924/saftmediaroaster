@@ -51,16 +51,19 @@ function SettingsPage() {
 function DangerZoneCard() {
   const [rosters, setRosters] = useState(true);
   const [checklists, setChecklists] = useState(true);
+  const [attendance, setAttendance] = useState(false);
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
 
   const wipe = async () => {
-    if (!rosters && !checklists) { toast.error("Select at least one type of data"); return; }
+    if (!rosters && !checklists && !attendance) { toast.error("Select at least one type of data"); return; }
     if (confirm.trim().toUpperCase() !== "ERASE") { toast.error('Type ERASE to confirm'); return; }
     setBusy(true);
     try {
-      const res: any = await adminWipeTestData({ data: { rosters, checklists } });
-      toast.success(`Erased ${res.rosters ?? 0} roster entries and ${res.services ?? 0} MPZ services`);
+      const res: any = await adminWipeTestData({ data: { rosters, checklists, attendance } });
+      toast.success(
+        `Erased ${res.rosters ?? 0} roster entries, ${res.services ?? 0} MPZ services and ${res.attendance ?? 0} attendance records`,
+      );
       setConfirm("");
     } catch (e: any) {
       toast.error(e?.message ?? "Could not erase data");
@@ -75,8 +78,8 @@ function DangerZoneCard() {
           <Trash2 className="h-5 w-5" /> Danger Zone — Erase test data
         </CardTitle>
         <CardDescription>
-          Permanently delete every roster you made for testing and all checklist / MPZ service data. Members, teams,
-          equipment and messages are not touched. This cannot be undone.
+          Permanently delete every roster you made for testing, all checklist / MPZ service data and attendance
+          records. Members, teams, equipment and messages are not touched. This cannot be undone.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -94,6 +97,13 @@ function DangerZoneCard() {
             <span className="block text-xs text-muted-foreground">Services, ticked items, member reports and shares.</span>
           </span>
         </label>
+        <label className="flex items-start gap-3 rounded-lg border p-3">
+          <input type="checkbox" checked={attendance} onChange={(e) => setAttendance(e.target.checked)} className="mt-1 h-4 w-4" />
+          <span>
+            <span className="block text-sm font-medium">All attendance records</span>
+            <span className="block text-xs text-muted-foreground">Every present / absent / late / excused mark and analytics history.</span>
+          </span>
+        </label>
         <div className="space-y-2">
           <Label htmlFor="wipe-confirm">Type ERASE to confirm</Label>
           <Input id="wipe-confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="ERASE" className="min-h-11" autoComplete="off" />
@@ -105,6 +115,7 @@ function DangerZoneCard() {
     </Card>
   );
 }
+
 
 function AdminKeyCard() {
   const [value, setValue] = useState("");

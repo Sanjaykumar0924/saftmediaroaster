@@ -204,7 +204,7 @@ export const shareChecklist = createServerFn({ method: "POST" })
  */
 export const adminWipeTestData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { rosters: boolean; checklists: boolean }) => data)
+  .inputValidator((data: { rosters: boolean; checklists: boolean; attendance?: boolean }) => data)
   .handler(async ({ data, context }) => {
     const { data: roles, error: rErr } = await (context as any).supabase
       .from("user_roles")
@@ -216,7 +216,7 @@ export const adminWipeTestData = createServerFn({ method: "POST" })
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const all = "00000000-0000-0000-0000-000000000000";
-    const counts = { rosters: 0, services: 0 };
+    const counts = { rosters: 0, services: 0, attendance: 0 };
 
     if (data.rosters) {
       const { count } = await supabaseAdmin.from("roster").select("id", { count: "exact", head: true });
@@ -234,5 +234,13 @@ export const adminWipeTestData = createServerFn({ method: "POST" })
       }
     }
 
+    if (data.attendance) {
+      const { count } = await supabaseAdmin.from("attendance").select("id", { count: "exact", head: true });
+      counts.attendance = count ?? 0;
+      const { error } = await supabaseAdmin.from("attendance").delete().neq("id", all);
+      if (error) throw new Error(error.message);
+    }
+
     return { ok: true, ...counts };
   });
+

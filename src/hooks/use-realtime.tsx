@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Table =
   | "roster"
+  | "attendance"
   | "availability"
   | "notifications"
   | "announcements"

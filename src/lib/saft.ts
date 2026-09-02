@@ -178,3 +178,41 @@ export function secondSaturday(year: number, month: number): Date {
   d.setDate(1 + offset + 7);
   return d;
 }
+
+/* ---------- Availability cutoffs (Asia/Kolkata) ---------- */
+
+/** Current time in IST as a "wall clock" Date (values read in IST). */
+export function nowIST(): Date {
+  const now = new Date();
+  return new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+}
+
+/** IST cutoff hour for a service, or null when the service has no cutoff. */
+export function cutoffHourFor(service: ServiceType): number | null {
+  if (service === "sunday_morning") return 11; // 11:00 AM IST
+  if (service === "sunday_evening") return 19; // 7:00 PM IST
+  return null;
+}
+
+/**
+ * True when member responses for this service date are closed.
+ * Sunday Morning closes after 11:00 AM IST, Sunday Evening after 7:00 PM IST.
+ */
+export function isAvailabilityClosed(
+  service: ServiceType,
+  serviceDate: Date | string,
+  now: Date = nowIST(),
+): boolean {
+  const hour = cutoffHourFor(service);
+  if (hour === null) return false;
+  const d = parseLocal(serviceDate);
+  const cutoff = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, 0, 0, 0);
+  return now.getTime() > cutoff.getTime();
+}
+
+export function cutoffLabel(service: ServiceType): string | null {
+  const hour = cutoffHourFor(service);
+  if (hour === null) return null;
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h12}:00 ${hour < 12 ? "AM" : "PM"} IST`;
+}
