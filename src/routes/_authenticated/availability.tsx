@@ -178,7 +178,7 @@ function AvailabilityPage() {
 
 
 /** Admin-created services beyond the fixed Sunday/Tuesday ones. */
-function ExtraServices() {
+function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
 
