@@ -183,7 +183,7 @@ function MembersPage() {
                                 <Crown className="h-3 w-3" /> Super Admin
                               </span>
                             )}
-                            {rolesOf(m.id).includes("admin") && (
+                            {rolesOf(m.id).includes("admin") && !rolesOf(m.id).includes("super_admin") && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                                 <ShieldCheck className="h-3 w-3" /> Admin
                               </span>
