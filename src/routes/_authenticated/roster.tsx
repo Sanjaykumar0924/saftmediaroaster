@@ -33,7 +33,9 @@ export const Route = createFileRoute("/_authenticated/roster")({
 });
 
 function RosterViewPage() {
+  const { user } = useAuth();
   const fetchDirectory = useServerFn(getMemberDirectory);
+
   const q = useQuery({
     queryKey: ["all-upcoming-roster"],
     queryFn: async () => {
