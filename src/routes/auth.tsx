@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandLogo } from "@/components/BrandLogo";
 import { usernameToEmail } from "@/lib/saft";
-import { getAdminAccessKey } from "@/lib/app-settings";
 
 import { useServerFn } from "@tanstack/react-start";
 import { claimAdminRole } from "@/lib/account.functions";
@@ -137,7 +136,6 @@ function AdminAuth() {
 }
 
 function AdminSignIn() {
-  const claimFn = useServerFn(claimAdminRole);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -149,11 +147,6 @@ function AdminSignIn() {
       setLoading(false);
       toast.error("Invalid credentials");
       return;
-    }
-    try {
-      await claimFn({ data: { access_key: "SAFTABERNACLE" } });
-    } catch {
-      // ignore if already granted
     }
     setLoading(false);
     toast.success("Welcome, admin");
@@ -191,12 +184,6 @@ function AdminRegister() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const liveKey = await getAdminAccessKey();
-    if (accessKey.trim() !== liveKey) {
-      toast.error("Invalid Admin Access Key");
-      return;
-    }
-
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
