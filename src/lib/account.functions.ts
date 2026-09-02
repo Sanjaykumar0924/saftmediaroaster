@@ -65,8 +65,8 @@ export const claimAdminRole = createServerFn({ method: "POST" })
       .select("value")
       .eq("key", "admin_access_key")
       .maybeSingle();
-    const live = (setting?.value ?? "SAFTABERNACLE").trim();
-    if (key !== live && key !== "SAFTABERNACLE" && key !== "SAFT2026") {
+    const live = (setting?.value ?? "").trim();
+    if (!live || key !== live) {
       throw new Error("Invalid admin access key");
     }
     const { error } = await supabaseAdmin.from("user_roles").upsert(
