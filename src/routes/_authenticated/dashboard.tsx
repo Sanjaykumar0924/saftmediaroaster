@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function Dashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, isAdmin, isSuperAdmin } = useAuth();
 
   const next = nextUpcomingService();
 
