@@ -275,8 +275,11 @@ function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
               service={s}
               row={mine.get(s.id)}
               onRespond={respond}
+              onRevoke={revoke}
+              rostered={rosteredIds.has(s.id)}
               onDelete={isAdmin ? removeService : undefined}
             />
+
           ))}
         </div>
       )}
