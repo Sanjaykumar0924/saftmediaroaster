@@ -228,7 +228,20 @@ function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
     qc.invalidateQueries({ queryKey: ["admin-avail"] });
   };
 
+  const revoke = async (serviceId: string) => {
+    const { error } = await supabase
+      .from("extra_service_availability")
+      .delete()
+      .eq("extra_service_id", serviceId)
+      .eq("user_id", user!.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Response revoked");
+    qc.invalidateQueries({ queryKey: ["extra-availability", user?.id] });
+    qc.invalidateQueries({ queryKey: ["admin-avail"] });
+  };
+
   const services = servicesQ.data ?? [];
+
 
   const removeService = async (id: string, name: string) => {
     if (!window.confirm(`Delete "${name}"? Member responses for it will be removed too.`)) return;
