@@ -486,11 +486,16 @@ function ServiceCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <StatusPill status={row.status} />
-        {closed && (
+        {locked ? (
+          <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm font-medium text-primary">
+            You're on the published roster for this service — availability is locked. It unlocks if the
+            assignment is removed.
+          </div>
+        ) : closed ? (
           <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm font-medium text-warning">
             Closed — responses shut after {cutoffLabel(row.service)}. Your saved answer stays as it is.
           </div>
-        )}
+        ) : null}
         <div className={cn("flex flex-col gap-3", closed && "pointer-events-none opacity-50")}>
           <Button
             size="lg"
