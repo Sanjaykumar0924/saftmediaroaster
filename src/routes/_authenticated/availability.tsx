@@ -433,9 +433,20 @@ function AddExtraServiceDialog({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Partial<Row>) => void }) {
+function ServiceCard({
+  row,
+  onSave,
+  onRevoke,
+  rostered,
+}: {
+  row: Row;
+  onSave: (row: Row, patch: Partial<Row>) => void;
+  onRevoke?: (row: Row) => void;
+  rostered?: boolean;
+}) {
   const { isAdmin, isSuperAdmin } = useAuth();
-  const closed = isAvailabilityClosed(row.service, row.date) && !isAdmin && !isSuperAdmin;
+  const locked = Boolean(rostered);
+  const closed = (isAvailabilityClosed(row.service, row.date) && !isAdmin && !isSuperAdmin) || locked;
   const [reason, setReason] = useState(row.unavailable_reason ?? "");
   const [customReason, setCustomReason] = useState(
     row.unavailable_reason && !REASONS.includes(row.unavailable_reason) ? row.unavailable_reason : "",
@@ -475,11 +486,16 @@ function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Part
       </CardHeader>
       <CardContent className="space-y-4">
         <StatusPill status={row.status} />
-        {closed && (
+        {locked ? (
+          <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm font-medium text-primary">
+            You're on the published roster for this service — availability is locked. It unlocks if the
+            assignment is removed.
+          </div>
+        ) : closed ? (
           <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm font-medium text-warning">
             Closed — responses shut after {cutoffLabel(row.service)}. Your saved answer stays as it is.
           </div>
-        )}
+        ) : null}
         <div className={cn("flex flex-col gap-3", closed && "pointer-events-none opacity-50")}>
           <Button
             size="lg"
