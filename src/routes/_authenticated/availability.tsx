@@ -596,6 +596,12 @@ function ServiceCard({
             )}
           </div>
         )}
+
+        {!locked && row.status !== "pending" && onRevoke && (
+          <Button variant="outline" className="w-full" onClick={() => onRevoke(row)}>
+            Revoke my response
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
