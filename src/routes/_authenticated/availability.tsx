@@ -433,9 +433,20 @@ function AddExtraServiceDialog({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function ServiceCard({ row, onSave }: { row: Row; onSave: (row: Row, patch: Partial<Row>) => void }) {
+function ServiceCard({
+  row,
+  onSave,
+  onRevoke,
+  rostered,
+}: {
+  row: Row;
+  onSave: (row: Row, patch: Partial<Row>) => void;
+  onRevoke?: (row: Row) => void;
+  rostered?: boolean;
+}) {
   const { isAdmin, isSuperAdmin } = useAuth();
-  const closed = isAvailabilityClosed(row.service, row.date) && !isAdmin && !isSuperAdmin;
+  const locked = Boolean(rostered);
+  const closed = (isAvailabilityClosed(row.service, row.date) && !isAdmin && !isSuperAdmin) || locked;
   const [reason, setReason] = useState(row.unavailable_reason ?? "");
   const [customReason, setCustomReason] = useState(
     row.unavailable_reason && !REASONS.includes(row.unavailable_reason) ? row.unavailable_reason : "",
