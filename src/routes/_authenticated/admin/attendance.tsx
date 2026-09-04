@@ -61,6 +61,14 @@ function AttendancePage() {
   const extras = (extrasQ.data ?? []) as any[];
   const currentExtra = extras.find((e) => e.id === extraId);
 
+  // If the selected extra service was deleted elsewhere, fall back to a fixed service.
+  useEffect(() => {
+    if (extraId && extrasQ.isSuccess && !currentExtra) {
+      setService("sunday_morning");
+      setDate(toDateOnly(nextServiceDate("sunday_morning")));
+    }
+  }, [extraId, currentExtra, extrasQ.isSuccess]);
+
   const membersQ = useQuery({
     queryKey: ["attend-members"],
     queryFn: async () => (await supabase.from("profiles").select("*").eq("is_active", true).order("full_name")).data ?? [],
