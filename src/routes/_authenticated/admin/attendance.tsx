@@ -50,7 +50,13 @@ function AttendancePage() {
   const extrasQ = useQuery({
     queryKey: ["attend-extra-services"],
     queryFn: async () =>
-      (await supabase.from("extra_services").select("id, name, service_date").order("service_date", { ascending: false })).data ?? [],
+      (
+        await supabase
+          .from("extra_services")
+          .select("id, name, service_date")
+          .is("deleted_at", null)
+          .order("service_date", { ascending: false })
+      ).data ?? [],
   });
   const extras = (extrasQ.data ?? []) as any[];
   const currentExtra = extras.find((e) => e.id === extraId);
