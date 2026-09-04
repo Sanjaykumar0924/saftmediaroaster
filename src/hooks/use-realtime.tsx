@@ -11,6 +11,7 @@ type Table =
   | "profiles"
   | "checklist_entries"
   | "checklist_shares"
+  | "inventory_items"
   | "checklist_reports"
   | "messages";
 
