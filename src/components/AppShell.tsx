@@ -23,13 +23,13 @@ import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-interface NavItem { to: string; label: string; icon: any; admin?: boolean; memberOnly?: boolean; badge?: "messages" | "checklist" | "roster" }
+interface NavItem { to: string; label: string; icon: any; admin?: boolean; memberOnly?: boolean; badge?: "messages" | "checklist" | "roster" | "shares" }
 
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, badge: "roster" },
   { to: "/admin/attendance", label: "Attendance", icon: Megaphone, admin: true },
   { to: "/availability", label: "Availability", icon: CalendarCheck2 },
-  { to: "/checklist", label: "My Checklists", icon: CheckCheck, memberOnly: true },
+  { to: "/checklist", label: "My Checklists", icon: CheckCheck, memberOnly: true, badge: "shares" },
   { to: "/messages", label: "Messages", icon: MessagesSquare, badge: "messages" },
   { to: "/roster", label: "Roster", icon: ClipboardList, badge: "roster" },
   { to: "/admin", label: "Admin Overview", icon: ShieldCheck, admin: true },
@@ -79,6 +79,23 @@ function useMenuBadges() {
     },
   });
 
+  // Checklists an admin shared with this user (members and fellow admins alike).
+  const sharesQ = useQuery({
+    queryKey: ["unread-shares", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const since = readSeen("shares", user!.id);
+      let q = supabase
+        .from("checklist_shares")
+        .select("id")
+        .eq("recipient_id", user!.id)
+        .limit(50);
+      if (since) q = q.gt("created_at", since);
+      const { data } = await q;
+      return (data ?? []).length;
+    },
+  });
+
   // Newly published rosters where THIS member is actually assigned, and that the member hasn't looked at yet.
   const rosterQ = useQuery({
     queryKey: ["unread-roster", user?.id],
@@ -115,6 +132,14 @@ function useMenuBadges() {
     },
   });
   useRealtimeInvalidate({ table: "roster", queryKeys: [["unread-roster", user?.id]] });
+  useRealtimeInvalidate({
+    table: "checklist_shares",
+    filter: user ? `recipient_id=eq.${user.id}` : undefined,
+    queryKeys: [["unread-shares", user?.id], ["my-checklists", user?.id]],
+    onChange: (payload) => {
+      if (payload.eventType === "INSERT") toast("📋 A checklist was shared with you");
+    },
+  });
 
   // Visiting a page clears its badge.
   useEffect(() => {
@@ -123,20 +148,31 @@ function useMenuBadges() {
       ? "messages"
       : pathname.startsWith("/admin/checklist")
         ? "checklist"
-        : pathname.startsWith("/roster") || pathname.startsWith("/dashboard")
-          ? "roster"
-          : null;
+        : pathname.startsWith("/checklist")
+          ? "shares"
+          : pathname.startsWith("/roster") || pathname.startsWith("/dashboard")
+            ? "roster"
+            : null;
     if (!kind) return;
     // small delay so the badge is visible for a moment before it clears
     const t = window.setTimeout(() => {
-      window.localStorage.setItem(SEEN_KEY(kind, user.id), new Date().toISOString());
-      qc.invalidateQueries({ queryKey: [`unread-${kind}`, user.id] });
+      const kinds = kind === "checklist" ? ["checklist", "shares"] : [kind];
+      for (const k of kinds) {
+        window.localStorage.setItem(SEEN_KEY(k, user.id), new Date().toISOString());
+        qc.invalidateQueries({ queryKey: [`unread-${k}`, user.id] });
+      }
     }, 2500);
     return () => window.clearTimeout(t);
   }, [pathname, user?.id]);
 
 
-  return { messages: messagesQ.data ?? 0, checklist: checklistQ.data ?? 0, roster: rosterQ.data ?? 0 };
+  return {
+    messages: messagesQ.data ?? 0,
+    // Admins see member reports plus checklists shared with them on the same tab.
+    checklist: (checklistQ.data ?? 0) + (isAdmin ? sharesQ.data ?? 0 : 0),
+    roster: rosterQ.data ?? 0,
+    shares: sharesQ.data ?? 0,
+  };
 
 }
 
