@@ -163,7 +163,13 @@ function useMenuBadges() {
   }, [pathname, user?.id]);
 
 
-  return { messages: messagesQ.data ?? 0, checklist: checklistQ.data ?? 0, roster: rosterQ.data ?? 0 };
+  return {
+    messages: messagesQ.data ?? 0,
+    // Admins see member reports plus checklists shared with them on the same tab.
+    checklist: (checklistQ.data ?? 0) + (isAdmin ? sharesQ.data ?? 0 : 0),
+    roster: rosterQ.data ?? 0,
+    shares: sharesQ.data ?? 0,
+  };
 
 }
 
