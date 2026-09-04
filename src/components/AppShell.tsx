@@ -23,7 +23,7 @@ import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-interface NavItem { to: string; label: string; icon: any; admin?: boolean; memberOnly?: boolean; badge?: "messages" | "checklist" | "roster" }
+interface NavItem { to: string; label: string; icon: any; admin?: boolean; memberOnly?: boolean; badge?: "messages" | "checklist" | "roster" | "shares" }
 
 const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, badge: "roster" },
