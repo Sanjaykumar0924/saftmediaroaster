@@ -187,7 +187,7 @@ function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
     queryFn: async () => {
       const today = toDateOnly(new Date());
       const { data, error } = await supabase
-        .from("extra_services").select("*").gte("service_date", today).order("service_date");
+        .from("extra_services").select("*").is("deleted_at", null).gte("service_date", today).order("service_date");
       if (error) throw error;
       return data ?? [];
     },
