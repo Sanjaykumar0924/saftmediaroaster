@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,20 +35,25 @@ export const Route = createFileRoute("/_authenticated/roster")({
 });
 
 function RosterViewPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const fetchDirectory = useServerFn(getMemberDirectory);
 
   const q = useQuery({
-    queryKey: ["all-upcoming-roster"],
+    queryKey: ["all-upcoming-roster", isAdmin],
     queryFn: async () => {
       const past = toDateOnly(new Date(Date.now() - 93 * 24 * 60 * 60 * 1000));
 
-      const { data: rosterRows, error: rosterError } = await supabase
+      let query = supabase
         .from("roster")
         .select("*")
-        .eq("status", "published")
         .gte("service_date", past)
         .order("service_date", { ascending: true });
+
+      if (!isAdmin) {
+        query = query.eq("status", "published");
+      }
+
+      const { data: rosterRows, error: rosterError } = await query;
       if (rosterError) throw rosterError;
 
       const rows = (rosterRows ?? []) as RosterRow[];
@@ -82,11 +87,27 @@ function RosterViewPage() {
   const weekEnd = toDateOnly(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
   const rows = q.data ?? [];
-  const groups = {
+  const groups = useMemo(() => ({
     current: groupByService(rows.filter((r: any) => r.service_date >= today && r.service_date <= weekEnd)),
     upcoming: groupByService(rows.filter((r: any) => r.service_date > weekEnd)),
     previous: groupByService(rows.filter((r: any) => r.service_date < today)),
-  };
+  }), [rows, today, weekEnd]);
+
+  const [activeTab, setActiveTab] = useState<string>("current");
+  const [tabInitialized, setTabInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!tabInitialized && rows.length > 0) {
+      if (Object.keys(groups.current).length > 0) {
+        setActiveTab("current");
+      } else if (Object.keys(groups.upcoming).length > 0) {
+        setActiveTab("upcoming");
+      } else if (Object.keys(groups.previous).length > 0) {
+        setActiveTab("previous");
+      }
+      setTabInitialized(true);
+    }
+  }, [rows.length, groups, tabInitialized]);
 
   return (
     <div className="space-y-6 animate-fade-up print:space-y-3">
@@ -108,19 +129,40 @@ function RosterViewPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="current" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4">
           <TabsTrigger value="current" className="w-full min-h-10 justify-center gap-1.5 whitespace-nowrap px-2 py-2 text-xs sm:text-sm">
-            <Clock className="h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Current Week</span><span className="sm:hidden">Week</span>
+            <Clock className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">Current Week</span>
+            <span className="sm:hidden">Week</span>
+            {Object.keys(groups.current).length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] font-bold">
+                {Object.keys(groups.current).length}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="upcoming" className="w-full min-h-10 justify-center gap-1.5 whitespace-nowrap px-2 py-2 text-xs sm:text-sm">
-            <CalendarClock className="h-4 w-4 shrink-0" /> Upcoming
+            <CalendarClock className="h-4 w-4 shrink-0" />
+            <span>Upcoming</span>
+            {Object.keys(groups.upcoming).length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] font-bold">
+                {Object.keys(groups.upcoming).length}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="previous" className="w-full min-h-10 justify-center gap-1.5 whitespace-nowrap px-2 py-2 text-xs sm:text-sm">
-            <History className="h-4 w-4 shrink-0" /> Previous
+            <History className="h-4 w-4 shrink-0" />
+            <span>Previous</span>
+            {Object.keys(groups.previous).length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px] font-bold">
+                {Object.keys(groups.previous).length}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="archive" className="w-full min-h-10 justify-center gap-1.5 whitespace-nowrap px-2 py-2 text-xs sm:text-sm">
-            <CalendarDays className="h-4 w-4 shrink-0" /> <span className="hidden sm:inline">3 Months After Previous</span><span className="sm:hidden">3 Months</span>
+            <CalendarDays className="h-4 w-4 shrink-0" />
+            <span className="hidden sm:inline">3 Months Archive</span>
+            <span className="sm:hidden">3 Months</span>
           </TabsTrigger>
         </TabsList>
 
@@ -198,7 +240,14 @@ function RosterList({ grouped, loading, emptyMsg }: { grouped: Record<string, an
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="text-xs font-semibold uppercase tracking-wider text-primary">{formatServiceDate(date)}</div>
-                  <CardTitle className="truncate text-lg sm:text-2xl">{serviceLabel(service as any)}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="truncate text-lg sm:text-2xl">{serviceLabel(service as any)}</CardTitle>
+                    {rows[0]?.status === "draft" && (
+                      <Badge variant="outline" className="border-warning/50 bg-warning/10 text-warning text-xs font-semibold">
+                        Draft · Admins Only
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/10">{rows.length} assignments</Badge>
               </div>

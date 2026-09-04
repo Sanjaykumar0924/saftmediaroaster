@@ -192,8 +192,9 @@ function BuildRosterPage() {
     await supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
     const { error } = await supabase.from("roster").insert(payload);
     if (error) { toast.error(error.message); return; }
-    toast.success("Draft saved. Members can't see it yet.");
+    toast.info("Draft saved. Click 'Build & Publish Roster' when ready to make it viewable by everyone.");
     qc.invalidateQueries({ queryKey: ["existing-roster", date, service] });
+    qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
   };
 
   const publishRoster = async () => {
@@ -204,19 +205,25 @@ function BuildRosterPage() {
       await supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
       const { error } = await supabase.from("roster").insert(payload);
       if (error) throw error;
-      const assignedUsers = Array.from(new Set(payload.map((r) => r.assigned_user_id).filter(Boolean))) as string[];
-      if (assignedUsers.length > 0) {
-        await supabase.from("notifications").insert(assignedUsers.map((uid) => ({
-          user_id: uid,
-          title: "You're on the roster",
-          body: `${serviceLabel(service)} · ${formatServiceDate(date)}`,
-          kind: "roster",
-        })));
+      try {
+        const assignedUsers = Array.from(new Set(payload.map((r) => r.assigned_user_id).filter(Boolean))) as string[];
+        if (assignedUsers.length > 0) {
+          await supabase.from("notifications").insert(assignedUsers.map((uid) => ({
+            user_id: uid,
+            title: "You're on the roster",
+            body: `${serviceLabel(service)} · ${formatServiceDate(date)}`,
+            kind: "roster",
+          })));
+        }
+      } catch (notifErr) {
+        console.warn("Notification dispatch skipped:", notifErr);
       }
-      toast.success("🚀 Roster published — every member notified instantly.");
+      toast.success("🚀 Roster updated & published — viewable by everyone in the app!");
       qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
       qc.invalidateQueries({ queryKey: ["upcoming-roster-me"] });
       qc.invalidateQueries({ queryKey: ["existing-roster", date, service] });
+      qc.invalidateQueries({ queryKey: ["roster-locks"] });
+      qc.invalidateQueries({ queryKey: ["unread-roster"] });
     } catch (e: any) {
       toast.error(e?.message ?? "Publish failed");
     }
@@ -236,7 +243,7 @@ function BuildRosterPage() {
         return { ...r, assigned: cand.id };
       }),
     );
-    toast.success("Suggested a fair assignment. Review & publish.");
+    toast.success("Suggested a fair assignment. Click 'Build & Publish Roster' to save.");
   };
 
   return (
@@ -244,7 +251,7 @@ function BuildRosterPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Build Roster</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Only members marked available appear in the dropdowns.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Build assignments and publish them live for everyone in the app.</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
           <div className="col-span-2 sm:col-span-1">
@@ -286,13 +293,16 @@ function BuildRosterPage() {
           </div>
           <Button variant="outline" onClick={autoAssign} className="min-h-11"><Sparkles className="mr-2 h-4 w-4" /> Auto</Button>
 
-          <Button variant="outline" onClick={saveDraft} className="min-h-11"><Save className="mr-2 h-4 w-4" /> Draft</Button>
+          <Button variant="outline" onClick={saveDraft} className="min-h-11" title="Save draft hidden from regular members">
+            <Save className="mr-2 h-4 w-4" /> Save as Draft
+          </Button>
           <Button
             onClick={publishRoster}
             disabled={publishing}
             className="col-span-2 min-h-11 bg-gradient-primary shadow-elegant sm:col-span-1"
+            title="Save and publish this roster live for everyone in the app"
           >
-            <Send className="mr-2 h-4 w-4" /> {publishing ? "Publishing…" : "Publish"}
+            <Send className="mr-2 h-4 w-4" /> {publishing ? "Updating Roster…" : "Build & Publish Roster"}
           </Button>
           <Button variant="outline" onClick={() => window.print()} className="hidden min-h-11 sm:inline-flex"><Printer className="mr-2 h-4 w-4" /> Print</Button>
         </div>
@@ -304,6 +314,23 @@ function BuildRosterPage() {
         <Card className="shadow-card"><CardContent className="p-4 text-sm"><span className="text-muted-foreground">Roles: </span><span className="font-bold">{rows.length}</span></CardContent></Card>
         <Card className="shadow-card"><CardContent className="p-4 text-sm"><span className="text-muted-foreground">Assigned: </span><span className="font-bold text-primary">{rows.filter((r) => r.assigned).length}</span></CardContent></Card>
       </div>
+
+      {status === "draft" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3.5 text-sm text-warning shadow-sm">
+          <div className="flex items-center gap-2 font-medium">
+            <FileEdit className="h-4 w-4 shrink-0" />
+            <span>This roster is currently saved as a <strong>Draft</strong> and is hidden from team members.</span>
+          </div>
+          <Button
+            size="sm"
+            onClick={publishRoster}
+            disabled={publishing}
+            className="h-8 bg-warning font-semibold text-warning-foreground hover:bg-warning/90"
+          >
+            <Send className="mr-1.5 h-3.5 w-3.5" /> Publish to Everyone Now
+          </Button>
+        </div>
+      )}
 
       <Card className="shadow-card overflow-hidden">
         <CardHeader className="bg-gradient-subtle border-b">
@@ -324,13 +351,13 @@ function BuildRosterPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Camera</TableHead>
                   <TableHead>Frame / Notes</TableHead>
-                  <TableHead className="w-56 sm:w-64">Assign</TableHead>
+                  <TableHead className="w-56 sm:w-64">Assign Member</TableHead>
                   <TableHead className="w-24 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((r) => (
-                  <TableRow key={r.key} className="align-top">
+                  <TableRow key={r.key} className="align-middle">
                     <TableCell>
                       {r.editing ? (
                         <OptionField options={ROLE_OPTIONS} value={r.role} onChange={(v) => patchRow(r.key, { role: v ?? "" })} placeholder="Role" />
@@ -355,38 +382,46 @@ function BuildRosterPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {r.editing ? (
-                        <Select
-                          value={r.assigned ?? "__unassigned__"}
-                          onValueChange={(v) => patchRow(r.key, { assigned: v === "__unassigned__" ? null : v })}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__unassigned__">— Unassigned —</SelectItem>
-                            {availableMembers.map((m: any) => (
-                              <SelectItem key={m.id} value={m.id}>
-                                {m.full_name} {assignedCount[m.id] ? `· ${assignedCount[m.id]} role(s)` : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : r.assigned ? (
-                        <Badge className={cn("bg-success/15 text-success hover:bg-success/15 font-semibold")}>
-                          {memberName(r.assigned) ?? "Assigned"}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">Unassigned</Badge>
-                      )}
+                      <Select
+                        value={r.assigned ?? "__unassigned__"}
+                        onValueChange={(v) => patchRow(r.key, { assigned: v === "__unassigned__" ? null : v })}
+                      >
+                        <SelectTrigger className={cn("w-full min-h-10", r.assigned ? "font-medium" : "text-muted-foreground")}>
+                          <SelectValue placeholder="— Select volunteer —">
+                            {r.assigned ? (
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="font-semibold text-foreground truncate">{memberName(r.assigned)}</span>
+                                {assignedCount[r.assigned] > 1 && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 border-primary/30 text-primary shrink-0">
+                                    {assignedCount[r.assigned]} roles
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">— Unassigned —</span>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__unassigned__">— Unassigned —</SelectItem>
+                          {availableMembers.map((m: any) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.full_name} {assignedCount[m.id] ? `· ${assignedCount[m.id]} role(s)` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button
                           size="icon"
                           variant="ghost"
-                          aria-label={r.editing ? "Done" : "Edit row"}
+                          title={r.editing ? "Finish editing details" : "Edit role / camera / notes"}
+                          aria-label={r.editing ? "Done" : "Edit details"}
                           onClick={() => patchRow(r.key, { editing: !r.editing })}
                         >
-                          {r.editing ? <Check className="h-4 w-4 text-success" /> : <Pencil className="h-4 w-4" />}
+                          {r.editing ? <Check className="h-4 w-4 text-success" /> : <Pencil className="h-4 w-4 text-muted-foreground" />}
                         </Button>
                         <Button
                           size="icon"
