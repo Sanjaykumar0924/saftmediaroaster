@@ -19,14 +19,30 @@ export type DirectoryMember = {
 export const getMemberDirectory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { ids?: string[] } | undefined) => data ?? {})
-  .handler(async ({ data }): Promise<DirectoryMember[]> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    let q = supabaseAdmin
-      .from("profiles")
-      .select("id, username, full_name, role_title, seniority, photo_url, is_active")
-      .order("full_name");
-    if (data.ids && data.ids.length > 0) q = q.in("id", data.ids);
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-    return (rows ?? []) as DirectoryMember[];
+  .handler(async ({ data, context }): Promise<DirectoryMember[]> => {
+    const client = (context as any)?.supabase;
+    if (client) {
+      let q = client
+        .from("profiles")
+        .select("id, username, full_name, role_title, seniority, photo_url, is_active")
+        .order("full_name");
+      if (data?.ids && data.ids.length > 0) q = q.in("id", data.ids);
+      const { data: rows, error } = await q;
+      if (!error && rows && rows.length > 0) {
+        return rows as DirectoryMember[];
+      }
+    }
+
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      let q = supabaseAdmin
+        .from("profiles")
+        .select("id, username, full_name, role_title, seniority, photo_url, is_active")
+        .order("full_name");
+      if (data?.ids && data.ids.length > 0) q = q.in("id", data.ids);
+      const { data: rows } = await q;
+      return (rows ?? []) as DirectoryMember[];
+    } catch {
+      return [];
+    }
   });

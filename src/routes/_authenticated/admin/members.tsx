@@ -71,9 +71,19 @@ function MembersPage() {
 
   const rolesQ = useQuery({
     queryKey: ["member-roles"],
-    queryFn: async () => {
-      const map = await fetchRolesFn();
-      return map as Record<string, string[]>;
+    queryFn: async (): Promise<Record<string, string[]>> => {
+      try {
+        const map = await fetchRolesFn();
+        return map as Record<string, string[]>;
+      } catch {
+        // Fallback: query user_roles directly via the client (admins have RLS access)
+        const { data } = await supabase.from("user_roles").select("user_id, role");
+        const roleMap: Record<string, string[]> = {};
+        for (const r of data ?? []) {
+          (roleMap[(r as any).user_id] ??= []).push((r as any).role);
+        }
+        return roleMap;
+      }
     },
   });
   const rolesOf = (id: string): string[] => rolesQ.data?.[id] ?? [];

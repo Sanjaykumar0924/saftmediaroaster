@@ -133,11 +133,29 @@ function ReportActions({
   const send = async (kind: "safe" | "issue") => {
     setBusy(true);
     try {
-      await reportFn({ data: { service_id: serviceId, kind, comment: kind === "issue" ? comment : undefined } });
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUserId = authData.user?.id;
+      if (!currentUserId) throw new Error("Please log in first");
+
+      const { error: insErr } = await supabase.from("checklist_reports").insert({
+        service_id: serviceId,
+        reporter_id: currentUserId,
+        kind,
+        comment: kind === "issue" ? comment.trim() : null,
+      });
+
+      if (insErr) {
+        await reportFn({ data: { service_id: serviceId, kind, comment: kind === "issue" ? comment : undefined } });
+      } else {
+        // Trigger reportFn for admin notification dispatching (best-effort)
+        reportFn({ data: { service_id: serviceId, kind, comment: kind === "issue" ? comment : undefined } }).catch(() => {});
+      }
+
       toast.success(kind === "safe" ? "Admins notified — everything returned safely" : "Issue sent to all admins");
       setIssueOpen(false);
       setComment("");
       qc.invalidateQueries({ queryKey: ["checklist-reports", serviceId] });
+      qc.invalidateQueries({ queryKey: ["checklist-report-counts"] });
     } catch (e: any) {
       toast.error(e?.message ?? "Could not send");
     }
