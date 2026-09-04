@@ -79,6 +79,23 @@ function useMenuBadges() {
     },
   });
 
+  // Checklists an admin shared with this user (members and fellow admins alike).
+  const sharesQ = useQuery({
+    queryKey: ["unread-shares", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const since = readSeen("shares", user!.id);
+      let q = supabase
+        .from("checklist_shares")
+        .select("id")
+        .eq("recipient_id", user!.id)
+        .limit(50);
+      if (since) q = q.gt("created_at", since);
+      const { data } = await q;
+      return (data ?? []).length;
+    },
+  });
+
   // Newly published rosters where THIS member is actually assigned, and that the member hasn't looked at yet.
   const rosterQ = useQuery({
     queryKey: ["unread-roster", user?.id],
