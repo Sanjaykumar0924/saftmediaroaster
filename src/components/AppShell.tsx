@@ -156,8 +156,11 @@ function useMenuBadges() {
     if (!kind) return;
     // small delay so the badge is visible for a moment before it clears
     const t = window.setTimeout(() => {
-      window.localStorage.setItem(SEEN_KEY(kind, user.id), new Date().toISOString());
-      qc.invalidateQueries({ queryKey: [`unread-${kind}`, user.id] });
+      const kinds = kind === "checklist" ? ["checklist", "shares"] : [kind];
+      for (const k of kinds) {
+        window.localStorage.setItem(SEEN_KEY(k, user.id), new Date().toISOString());
+        qc.invalidateQueries({ queryKey: [`unread-${k}`, user.id] });
+      }
     }, 2500);
     return () => window.clearTimeout(t);
   }, [pathname, user?.id]);
