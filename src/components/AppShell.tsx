@@ -132,6 +132,14 @@ function useMenuBadges() {
     },
   });
   useRealtimeInvalidate({ table: "roster", queryKeys: [["unread-roster", user?.id]] });
+  useRealtimeInvalidate({
+    table: "checklist_shares",
+    filter: user ? `recipient_id=eq.${user.id}` : undefined,
+    queryKeys: [["unread-shares", user?.id], ["my-checklists", user?.id]],
+    onChange: (payload) => {
+      if (payload.eventType === "INSERT") toast("📋 A checklist was shared with you");
+    },
+  });
 
   // Visiting a page clears its badge.
   useEffect(() => {
@@ -140,9 +148,11 @@ function useMenuBadges() {
       ? "messages"
       : pathname.startsWith("/admin/checklist")
         ? "checklist"
-        : pathname.startsWith("/roster") || pathname.startsWith("/dashboard")
-          ? "roster"
-          : null;
+        : pathname.startsWith("/checklist")
+          ? "shares"
+          : pathname.startsWith("/roster") || pathname.startsWith("/dashboard")
+            ? "roster"
+            : null;
     if (!kind) return;
     // small delay so the badge is visible for a moment before it clears
     const t = window.setTimeout(() => {
