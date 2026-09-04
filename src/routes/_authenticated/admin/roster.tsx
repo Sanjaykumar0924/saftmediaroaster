@@ -74,6 +74,7 @@ function BuildRosterPage() {
       const { data } = await supabase
         .from("extra_services")
         .select("*")
+        .is("deleted_at", null)
         .gte("service_date", toDateOnly(new Date()))
         .order("service_date");
       return data ?? [];

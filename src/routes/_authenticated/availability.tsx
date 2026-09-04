@@ -187,7 +187,7 @@ function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
     queryFn: async () => {
       const today = toDateOnly(new Date());
       const { data, error } = await supabase
-        .from("extra_services").select("*").gte("service_date", today).order("service_date");
+        .from("extra_services").select("*").is("deleted_at", null).gte("service_date", today).order("service_date");
       if (error) throw error;
       return data ?? [];
     },
@@ -244,13 +244,20 @@ function ExtraServices({ rosteredIds }: { rosteredIds: Set<string> }) {
 
 
   const removeService = async (id: string, name: string) => {
-    if (!window.confirm(`Delete "${name}"? Member responses for it will be removed too.`)) return;
+    if (!window.confirm(`Delete "${name}"? Member responses for it will be removed, but attendance already recorded stays in Analytics.`)) return;
     await supabase.from("roster").update({ extra_service_id: null } as any).eq("extra_service_id", id);
     await supabase.from("extra_service_availability").delete().eq("extra_service_id", id);
-    const { error } = await supabase.from("extra_services").delete().eq("id", id);
+    // Soft delete: keeps recorded attendance intact for Analytics while removing
+    // the service from availability, attendance and roster pickers.
+    const { error } = await supabase
+      .from("extra_services")
+      .update({ deleted_at: new Date().toISOString() } as any)
+      .eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success("Service deleted");
     qc.invalidateQueries({ queryKey: ["extra-services"] });
+    qc.invalidateQueries({ queryKey: ["attend-extra-services"] });
+    qc.invalidateQueries({ queryKey: ["roster-extra-services"] });
     qc.invalidateQueries({ queryKey: ["extra-availability", user?.id] });
     qc.invalidateQueries({ queryKey: ["admin-avail"] });
   };

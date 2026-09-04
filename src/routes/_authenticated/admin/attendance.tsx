@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,10 +50,24 @@ function AttendancePage() {
   const extrasQ = useQuery({
     queryKey: ["attend-extra-services"],
     queryFn: async () =>
-      (await supabase.from("extra_services").select("id, name, service_date").order("service_date", { ascending: false })).data ?? [],
+      (
+        await supabase
+          .from("extra_services")
+          .select("id, name, service_date")
+          .is("deleted_at", null)
+          .order("service_date", { ascending: false })
+      ).data ?? [],
   });
   const extras = (extrasQ.data ?? []) as any[];
   const currentExtra = extras.find((e) => e.id === extraId);
+
+  // If the selected extra service was deleted elsewhere, fall back to a fixed service.
+  useEffect(() => {
+    if (extraId && extrasQ.isSuccess && !currentExtra) {
+      setService("sunday_morning");
+      setDate(toDateOnly(nextServiceDate("sunday_morning")));
+    }
+  }, [extraId, currentExtra, extrasQ.isSuccess]);
 
   const membersQ = useQuery({
     queryKey: ["attend-members"],

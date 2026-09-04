@@ -43,7 +43,8 @@ function Dashboard() {
         .eq("assigned_user_id", user!.id)
         .gte("service_date", today)
         .order("service_date", { ascending: true })
-        .limit(5);
+        .order("role", { ascending: true })
+        .limit(200);
       return data ?? [];
     },
   });
