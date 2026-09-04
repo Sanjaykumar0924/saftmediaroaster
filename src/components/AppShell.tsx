@@ -29,7 +29,7 @@ const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, badge: "roster" },
   { to: "/admin/attendance", label: "Attendance", icon: Megaphone, admin: true },
   { to: "/availability", label: "Availability", icon: CalendarCheck2 },
-  { to: "/checklist", label: "My Checklists", icon: CheckCheck, memberOnly: true },
+  { to: "/checklist", label: "My Checklists", icon: CheckCheck, memberOnly: true, badge: "shares" },
   { to: "/messages", label: "Messages", icon: MessagesSquare, badge: "messages" },
   { to: "/roster", label: "Roster", icon: ClipboardList, badge: "roster" },
   { to: "/admin", label: "Admin Overview", icon: ShieldCheck, admin: true },
