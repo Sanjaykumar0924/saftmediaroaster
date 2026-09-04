@@ -71,24 +71,21 @@ function AdminChecklistPage() {
   const dirQ = useQuery({
     queryKey: ["checklist-directory"],
     queryFn: async () => {
-      // Try member_directory view first – accessible to all authenticated users
-      const { data: dirData, error: dirError } = await supabase
-        .from("member_directory")
-        .select("id, username, full_name, role_title, seniority, photo_url, is_active")
-        .order("full_name");
-      if (!dirError && dirData && dirData.length > 0) return dirData;
-
-      // Fallback to profiles (admin access)
+      // Query profiles directly (accessible to admins via RLS)
       const { data, error } = await supabase
         .from("profiles")
         .select("id, username, full_name, role_title, seniority, photo_url, is_active")
         .order("full_name");
       if (!error && data && data.length > 0) return data;
+
+      // Fallback to server function if direct query returned empty or had RLS issues
       try {
-        return await dirFn({ data: {} });
+        const serverData = await dirFn({ data: {} });
+        if (serverData && serverData.length > 0) return serverData;
       } catch {
-        return data ?? [];
+        // ignore
       }
+      return data ?? [];
     },
   });
   const people = useMemo(
@@ -132,9 +129,13 @@ function AdminChecklistPage() {
 
   const deleteService = async (id: string, name: string) => {
     if (!window.confirm(`Delete "${name}"? Its checklist ticks and member reports will be removed too.`)) return;
-    await supabase.from("checklist_entries").delete().eq("service_id", id);
-    await supabase.from("checklist_reports").delete().eq("service_id", id);
-    await supabase.from("checklist_shares").delete().eq("service_id", id);
+    try {
+      await supabase.from("checklist_entries").delete().eq("service_id", id);
+      await supabase.from("checklist_reports").delete().eq("service_id", id);
+      await supabase.from("checklist_shares").delete().eq("service_id", id);
+    } catch {
+      // best-effort cleanup of child records; mpc_services table has ON DELETE CASCADE
+    }
     const { error } = await supabase.from("mpc_services").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success("Service deleted");
@@ -325,21 +326,14 @@ function ShareDialog({ serviceId, serviceLabel }: { serviceId: string; serviceLa
     queryKey: ["share-directory"],
     enabled: open,
     queryFn: async () => {
-      // Try member_directory view first – accessible to all authenticated users
-      const { data: dirData, error: dirError } = await supabase
-        .from("member_directory")
-        .select("id, username, full_name, role_title, seniority, photo_url, is_active")
-        .order("full_name");
-      if (!dirError && dirData && dirData.length > 0) return dirData;
-
-      // Fallback: query profiles directly (works for admins via RLS)
+      // Query profiles directly (works for admins via RLS)
       const { data, error } = await supabase
         .from("profiles")
         .select("id, username, full_name, role_title, seniority, photo_url, is_active")
         .order("full_name");
       if (!error && data && data.length > 0) return data;
 
-      // Last resort: server function
+      // Fallback: server function
       try {
         const res = await dirFn({ data: {} });
         if (res && res.length > 0) return res;
