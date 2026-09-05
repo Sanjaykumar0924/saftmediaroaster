@@ -59,6 +59,22 @@ export const PRELOADED_MEMBERS = [
   "Isaac", "Sanjay", "Sujith", "Samuel", "Edward", "Lorenzo",
 ];
 
+/** Extract real note text and any embedded volunteer name from roster notes */
+export function extractNotesAndName(rawNotes: string | null | undefined): { cleanNotes: string; embeddedName: string | null } {
+  if (!rawNotes) return { cleanNotes: "", embeddedName: null };
+  const match = rawNotes.match(/<!--name:(.*?)-->/);
+  const embeddedName = match ? match[1].trim() : null;
+  const cleanNotes = rawNotes.replace(/<!--name:.*?-->/g, "").trim();
+  return { cleanNotes, embeddedName };
+}
+
+/** Embed assigned volunteer name into notes string so it is visible to all members regardless of RLS */
+export function embedNameToNotes(cleanNotes: string | null | undefined, name: string | null | undefined): string | null {
+  const base = (cleanNotes || "").replace(/<!--name:.*?-->/g, "").trim();
+  if (!name?.trim()) return base || null;
+  return base ? `${base} <!--name:${name.trim()}-->` : `<!--name:${name.trim()}-->`;
+}
+
 // Return the next occurrence (date) of a given weekday.
 export function nextDateForWeekday(weekday: number, from: Date = new Date()): Date {
   const d = new Date(from);

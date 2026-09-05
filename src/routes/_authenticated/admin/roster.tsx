@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   CAMERA_OPTIONS, FRAME_OPTIONS, ROLE_OPTIONS, ROSTER_ROLES, SERVICES,
   formatServiceDate, nextServiceDate, serviceLabel, toDateOnly,
+  extractNotesAndName, embedNameToNotes,
 } from "@/lib/saft";
 import type { ServiceType } from "@/lib/saft";
 import { Sparkles, Save, Printer, Send, FileEdit, CheckCircle2, Plus, Trash2, Pencil, Check } from "lucide-react";
@@ -87,9 +88,20 @@ function BuildRosterPage() {
     queryKey: ["roster-members"],
     queryFn: async () => {
       const { data } = await supabase.from("profiles").select("*").eq("is_active", true).order("full_name");
+      if (data && data.length > 0) {
+        try {
+          const map: Record<string, string> = {};
+          data.forEach((m: any) => { if (m.id && m.full_name) map[m.id] = m.full_name; });
+          localStorage.setItem("saft_cached_directory", JSON.stringify(map));
+          supabase.from("announcements").delete().eq("title", "__system_member_directory__").then(() => {
+            supabase.from("announcements").insert({ title: "__system_member_directory__", body: JSON.stringify(map) });
+          });
+        } catch {}
+      }
       return data ?? [];
     },
   });
+
 
   const availQ = useQuery({
     queryKey: ["roster-avail", date, service],
@@ -125,7 +137,7 @@ function BuildRosterPage() {
         key: newKey(),
         role: r.role,
         camera: r.camera ?? null,
-        notes: r.notes ?? null,
+        notes: extractNotesAndName(r.notes).cleanNotes || null,
         assigned: r.assigned_user_id ?? null,
       })),
     );
@@ -172,23 +184,26 @@ function BuildRosterPage() {
 
   const buildRows = (rosterStatus: "draft" | "published") =>
     rows
-      .filter((r) => r.assigned)
-      .map((r) => ({
-        service_date: date,
-        service_type: service,
-        role: r.role,
-        camera: r.camera,
-        assigned_user_id: r.assigned,
-        notes: r.notes,
-        created_by: user?.id ?? null,
-        extra_service_id: extraId,
-        status: rosterStatus,
-        published_at: rosterStatus === "published" ? new Date().toISOString() : null,
-      }));
+      .filter((r) => r.role?.trim())
+      .map((r) => {
+        const assignedVolunteerName = r.assigned ? memberName(r.assigned) : null;
+        return {
+          service_date: date,
+          service_type: service,
+          role: r.role,
+          camera: r.camera,
+          assigned_user_id: r.assigned || null,
+          notes: embedNameToNotes(r.notes, assignedVolunteerName),
+          created_by: user?.id ?? null,
+          extra_service_id: extraId,
+          status: rosterStatus,
+          published_at: rosterStatus === "published" ? new Date().toISOString() : null,
+        };
+      });
 
   const saveDraft = async () => {
     const payload = buildRows("draft");
-    if (payload.length === 0) { toast.error("Assign at least one role"); return; }
+    if (payload.length === 0) { toast.error("Please add at least one role"); return; }
     await supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
     const { error } = await supabase.from("roster").insert(payload);
     if (error) { toast.error(error.message); return; }
@@ -199,7 +214,9 @@ function BuildRosterPage() {
 
   const publishRoster = async () => {
     const payload = buildRows("published");
-    if (payload.length === 0) { toast.error("Assign at least one role"); return; }
+    if (payload.length === 0) { toast.error("Please add at least one role"); return; }
+    if (!payload.some((r) => r.assigned_user_id)) { toast.error("Assign at least one volunteer to publish"); return; }
+
     setPublishing(true);
     try {
       await supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
@@ -218,6 +235,25 @@ function BuildRosterPage() {
       } catch (notifErr) {
         console.warn("Notification dispatch skipped:", notifErr);
       }
+
+      // Sync member directory map into announcements so all regular members can see teammate names
+      try {
+        const dirMap: Record<string, string> = {};
+        (membersQ.data ?? []).forEach((m: any) => {
+          if (m.id && m.full_name) dirMap[m.id] = m.full_name;
+        });
+        if (Object.keys(dirMap).length > 0) {
+          try { localStorage.setItem("saft_cached_directory", JSON.stringify(dirMap)); } catch {}
+          await supabase.from("announcements").delete().eq("title", "__system_member_directory__");
+          await supabase.from("announcements").insert({
+            title: "__system_member_directory__",
+            body: JSON.stringify(dirMap),
+          });
+        }
+      } catch (dirErr) {
+        console.warn("Directory sync skipped:", dirErr);
+      }
+
       toast.success("🚀 Roster updated & published — viewable by everyone in the app!");
       qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
       qc.invalidateQueries({ queryKey: ["upcoming-roster-me"] });

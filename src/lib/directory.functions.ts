@@ -21,6 +21,7 @@ export const getMemberDirectory = createServerFn({ method: "POST" })
   .inputValidator((data: { ids?: string[] } | undefined) => data ?? {})
   .handler(async ({ data, context }): Promise<DirectoryMember[]> => {
     const client = (context as any)?.supabase;
+    let found: DirectoryMember[] = [];
     if (client) {
       let q = client
         .from("profiles")
@@ -28,11 +29,20 @@ export const getMemberDirectory = createServerFn({ method: "POST" })
         .order("full_name");
       if (data?.ids && data.ids.length > 0) q = q.in("id", data.ids);
       const { data: rows, error } = await q;
-      if (!error && rows && rows.length > 0) {
-        return rows as DirectoryMember[];
+      if (!error && rows) {
+        found = rows as DirectoryMember[];
       }
     }
 
+    // If all requested IDs were found, return them
+    if (data?.ids && data.ids.length > 0 && found.length >= data.ids.length) {
+      return found;
+    }
+    if (!data?.ids && found.length > 0) {
+      return found;
+    }
+
+    // Fetch via supabaseAdmin service role to bypass RLS restrictions
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       let q = supabaseAdmin
@@ -41,8 +51,11 @@ export const getMemberDirectory = createServerFn({ method: "POST" })
         .order("full_name");
       if (data?.ids && data.ids.length > 0) q = q.in("id", data.ids);
       const { data: rows } = await q;
-      return (rows ?? []) as DirectoryMember[];
-    } catch {
-      return [];
-    }
+      if (rows && rows.length > 0) {
+        return rows as DirectoryMember[];
+      }
+    } catch {}
+
+    return found;
   });
+

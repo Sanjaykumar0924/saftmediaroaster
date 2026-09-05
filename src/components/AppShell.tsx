@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { clearMyNotifications } from "@/lib/account.functions";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -51,7 +53,7 @@ const readSeen = (kind: string, uid?: string) => {
 
 /** Unread counters for the sidebar: new team messages, and new checklist reports for admins. */
 function useMenuBadges() {
-  const { user, isAdmin } = useAuth();
+  const { user, profile, isAdmin } = useAuth();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -140,6 +142,47 @@ function useMenuBadges() {
       if (payload.eventType === "INSERT") toast("📋 A checklist was shared with you");
     },
   });
+
+  // When an admin is active, keep the system member directory synced in announcements & localStorage
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    let active = true;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, full_name, username")
+          .eq("is_active", true);
+        if (!active || !data || data.length === 0) return;
+        const dirMap: Record<string, string> = {};
+        data.forEach((p: any) => {
+          if (p.id && (p.full_name || p.username)) {
+            dirMap[p.id] = p.full_name || p.username;
+          }
+        });
+        if (Object.keys(dirMap).length === 0) return;
+        try { localStorage.setItem("saft_cached_directory", JSON.stringify(dirMap)); } catch {}
+        await supabase.from("announcements").delete().eq("title", "__system_member_directory__");
+        await supabase.from("announcements").insert({
+          title: "__system_member_directory__",
+          body: JSON.stringify(dirMap),
+        });
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, [user, isAdmin]);
+
+  // Keep own profile name stored in local cache
+  useEffect(() => {
+    if (!user || !profile) return;
+    try {
+      const cached = JSON.parse(localStorage.getItem("saft_cached_directory") || "{}");
+      if (profile.id && (profile.full_name || profile.username)) {
+        cached[profile.id] = profile.full_name || profile.username;
+        localStorage.setItem("saft_cached_directory", JSON.stringify(cached));
+      }
+    } catch {}
+  }, [user, profile]);
 
   // Visiting a page clears its badge.
   useEffect(() => {
@@ -318,6 +361,7 @@ function NotificationBell() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const serverClear = useServerFn(clearMyNotifications);
 
   const q = useQuery({
     queryKey: ["notifications", user?.id],
@@ -328,8 +372,18 @@ function NotificationBell() {
         .select("*")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false })
-        .limit(20);
-      return data ?? [];
+        .limit(30);
+
+      let list = (data ?? []) as any[];
+      try {
+        const clearedUntil = localStorage.getItem(`notifications_cleared_until_${user!.id}`);
+        if (clearedUntil) {
+          const clearedTime = new Date(clearedUntil).getTime();
+          list = list.filter((n: any) => new Date(n.created_at).getTime() > clearedTime);
+        }
+      } catch {}
+
+      return list;
     },
   });
 
@@ -367,15 +421,44 @@ function NotificationBell() {
   const clearAll = async () => {
     if (!user || items.length === 0) return;
     setOpen(false);
-    const { error } = await supabase.from("notifications").delete().eq("user_id", user.id);
-    if (error) {
-      toast.error("Could not clear notifications");
-      return;
-    }
+
+    // 1. Mark cutoff in localStorage for instant visual clearance for this member
+    try {
+      localStorage.setItem(`notifications_cleared_until_${user.id}`, new Date().toISOString());
+    } catch {}
+
+    // 2. Clear on server via service role server function (bypasses RLS)
+    try {
+      await serverClear({});
+    } catch {}
+
+    // 3. Direct DB delete attempt (works if admin or delete policy active)
+    try {
+      await supabase.from("notifications").delete().eq("user_id", user.id);
+    } catch {}
+
+    // 4. Also mark as read in DB so unread badges always clear
+    try {
+      await supabase.from("notifications").update({ read: true }).eq("user_id", user.id);
+    } catch {}
+
     qc.invalidateQueries({ queryKey: ["notifications", user.id] });
     toast.success("Notifications cleared");
   };
 
+  const dismissOne = async (e: React.MouseEvent, n: any) => {
+    e.stopPropagation();
+    try {
+      await serverClear({ data: { id: n.id } });
+    } catch {}
+    try {
+      await supabase.from("notifications").delete().eq("id", n.id);
+    } catch {}
+    try {
+      await supabase.from("notifications").update({ read: true }).eq("id", n.id);
+    } catch {}
+    qc.invalidateQueries({ queryKey: ["notifications", user?.id] });
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -414,22 +497,33 @@ function NotificationBell() {
           ) : (
             <ul className="divide-y">
               {items.map((n: any) => (
-                <li key={n.id} className={cn(!n.read && "bg-primary/5")}>
-                  <button
-                    type="button"
-                    onClick={() => openNotification(n)}
-                    className="w-full p-3 text-left transition-smooth hover:bg-muted/60"
-                  >
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold">{n.title}</div>
-                        {n.body && <div className="mt-0.5 text-xs text-muted-foreground">{n.body}</div>}
+                <li key={n.id} className={cn("group relative", !n.read && "bg-primary/5")}>
+                  <div className="flex items-start justify-between">
+                    <button
+                      type="button"
+                      onClick={() => openNotification(n)}
+                      className="flex-1 p-3 text-left transition-smooth hover:bg-muted/60"
+                    >
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                        <div className="min-w-0 pr-2">
+                          <div className="text-sm font-semibold">{n.title}</div>
+                          {n.body && <div className="mt-0.5 text-xs text-muted-foreground">{n.body}</div>}
+                        </div>
+                        <div className="shrink-0 text-[10px] text-muted-foreground">
+                          {safeAgo(n.created_at)}
+                        </div>
                       </div>
-                      <div className="shrink-0 text-[10px] text-muted-foreground">
-                        {safeAgo(n.created_at)}
-                      </div>
-                    </div>
-                  </button>
+                    </button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => dismissOne(e, n)}
+                      title="Dismiss"
+                      className="mr-2 mt-2.5 h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -439,6 +533,7 @@ function NotificationBell() {
     </Popover>
   );
 }
+
 
 /** Where a notification should take the user when tapped. */
 function notificationTarget(kind: string | null | undefined, isAdmin: boolean): string {

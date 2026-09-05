@@ -1,11 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatServiceDate, nextUpcomingService, serviceLabel, servicesByNextDate, toDateOnly } from "@/lib/saft";
-import { CalendarClock, Sparkles, Trophy, CheckCircle2, XCircle, HelpCircle, Clock } from "lucide-react";
+import { formatServiceDate, nextUpcomingService, serviceLabel, servicesByNextDate, toDateOnly, extractNotesAndName } from "@/lib/saft";
+import { CalendarClock, Sparkles, Trophy, CheckCircle2, XCircle, HelpCircle, Clock, ArrowRight } from "lucide-react";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { toast } from "sonner";
 
@@ -33,11 +34,11 @@ function Dashboard() {
   });
 
   const upcomingRosterQ = useQuery({
-    queryKey: ["upcoming-roster-me", user?.id],
+    queryKey: ["upcoming-roster-me", user?.id, isAdmin],
     enabled: !!user,
     queryFn: async () => {
       const today = toDateOnly(new Date());
-      const { data } = await supabase
+      let query = supabase
         .from("roster")
         .select("*")
         .eq("assigned_user_id", user!.id)
@@ -45,9 +46,16 @@ function Dashboard() {
         .order("service_date", { ascending: true })
         .order("role", { ascending: true })
         .limit(200);
+
+      if (!isAdmin) {
+        query = query.eq("status", "published");
+      }
+
+      const { data } = await query;
       return data ?? [];
     },
   });
+
 
   const availabilityQ = useQuery({
     queryKey: ["my-avail-upcoming", user?.id],
@@ -125,6 +133,8 @@ function Dashboard() {
           <CardHeader>
             <CardTitle>My work &amp; assignments</CardTitle>
           </CardHeader>
+
+
           <CardContent>
             {upcomingRosterQ.isLoading ? (
               <div className="text-sm text-muted-foreground">Loading…</div>
@@ -146,7 +156,7 @@ function Dashboard() {
                         <Badge className="bg-warning/15 text-warning hover:bg-warning/15">{r.camera}</Badge>
                       )}
                       {r.notes && (
-                        <Badge variant="outline" className="font-normal text-muted-foreground">{r.notes}</Badge>
+                        <Badge variant="outline" className="font-normal text-muted-foreground">{extractNotesAndName(r.notes).cleanNotes}</Badge>
                       )}
                     </div>
                   </div>

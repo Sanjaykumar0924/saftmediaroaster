@@ -512,7 +512,7 @@ function ShareDialog({ serviceId, serviceLabel }: { serviceId: string; serviceLa
               {filtered.map((p: any) => {
                 const isSelected = selected.includes(p.id);
                 const isAlreadyShared = alreadySharedSet.has(p.id);
-                const name = p.full_name || p.username || "Team member";
+                const name = p.full_name || p.username || (p.id ? `Member ${p.id.slice(0, 4)}` : "Member");
                 const initials = (name.replace(/[^a-zA-Z]/g, "").slice(0, 2) || "TM").toUpperCase();
                 const level = seniorityLabel(p.seniority);
 

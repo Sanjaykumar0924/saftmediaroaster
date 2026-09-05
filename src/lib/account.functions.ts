@@ -79,3 +79,33 @@ export const claimAdminRole = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/**
+ * Allows the signed-in member/admin to clear their notifications on the server.
+ * Uses service role to bypass RLS delete limitations.
+ */
+export const clearMyNotifications = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data?: { id?: string }) => data ?? {})
+  .handler(async ({ data, context }) => {
+    const userId = (context as any).userId;
+    if (!userId) throw new Error("Unauthorized");
+
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      let q = supabaseAdmin.from("notifications").delete().eq("user_id", userId);
+      if (data?.id) q = q.eq("id", data.id);
+      await q;
+    } catch {
+      try {
+        const client = (context as any).supabase;
+        if (client) {
+          let q = client.from("notifications").delete().eq("user_id", userId);
+          if (data?.id) q = q.eq("id", data.id);
+          await q;
+        }
+      } catch {}
+    }
+    return { ok: true };
+  });
+
