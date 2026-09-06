@@ -84,14 +84,23 @@ export function nextDateForWeekday(weekday: number, from: Date = new Date()): Da
   return d;
 }
 
-export function nextServiceDate(service: ServiceType, from: Date = new Date()): Date {
+export function nextServiceDate(service: ServiceType, from: Date = nowIST()): Date {
   const s = SERVICES.find((x) => x.id === service)!;
   const d = nextDateForWeekday(s.day, from);
   d.setHours(s.hour, 0, 0, 0);
+  // If today is the service day but the service is already over (past its
+  // cutoff / start hour in IST), roll forward to next week's occurrence.
+  const endHour = cutoffHourFor(service) ?? s.hour + 2;
+  const end = new Date(d);
+  end.setHours(endHour, 0, 0, 0);
+  if (from.getTime() > end.getTime()) {
+    d.setDate(d.getDate() + 7);
+  }
   return d;
 }
 
-export function nextUpcomingService(from: Date = new Date()) {
+
+export function nextUpcomingService(from: Date = nowIST()) {
   let best: { service: ServiceType; date: Date } | null = null;
   for (const s of SERVICES) {
     const d = nextServiceDate(s.id, from);
@@ -133,7 +142,7 @@ export function formatDayMonthYear(d: Date | string) {
 
 
 /** Services ordered so the soonest upcoming one comes first. */
-export function servicesByNextDate(from: Date = new Date()) {
+export function servicesByNextDate(from: Date = nowIST()) {
   return [...SERVICES]
     .map((s) => ({ ...s, nextDate: nextServiceDate(s.id, from) }))
     .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime());
