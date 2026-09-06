@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
@@ -147,8 +148,7 @@ function AdminKeyCard() {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label>Access key</Label>
-          <Input
-            type={show ? "text" : "password"}
+          <PasswordInput
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="min-h-11 font-mono"
@@ -343,7 +343,7 @@ function PwField({ label, value, onChange, show }: { label: string; value: strin
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)} className="min-h-11" autoComplete="new-password" />
+      <PasswordInput value={value} onChange={(e) => onChange(e.target.value)} className="min-h-11" autoComplete="new-password" />
     </div>
   );
 }

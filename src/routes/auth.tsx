@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -103,7 +104,7 @@ function MemberLogin() {
       </div>
       <div>
         <Label htmlFor="m-pass">Password</Label>
-        <Input id="m-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <PasswordInput id="m-pass" value={password} onChange={(e) => setPassword(e.target.value)} required />
       </div>
       <Button type="submit" className="w-full bg-gradient-primary shadow-elegant" disabled={loading}>
         {loading ? "Signing in…" : "Sign in"}
@@ -163,7 +164,7 @@ function AdminSignIn() {
       </div>
       <div>
         <Label>Password</Label>
-        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required />
       </div>
       <Button type="submit" className="w-full bg-gradient-primary shadow-elegant" disabled={loading}>
         {loading ? "Signing in…" : "Sign in as Admin"}
@@ -234,11 +235,11 @@ function AdminRegister() {
       </div>
       <div>
         <Label>Password</Label>
-        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required />
       </div>
       <div>
         <Label>Admin Access Key</Label>
-        <Input type="password" value={accessKey} onChange={(e) => setAccessKey(e.target.value)} placeholder="Enter access key" required />
+        <PasswordInput value={accessKey} onChange={(e) => setAccessKey(e.target.value)} placeholder="Enter access key" required />
       </div>
       <Button type="submit" className="w-full bg-gradient-primary shadow-elegant" disabled={loading}>
         {loading ? "Creating…" : "Create Admin Account"}
