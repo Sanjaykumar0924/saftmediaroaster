@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -470,7 +471,7 @@ function AddMemberDialog({ onCreated }: { onCreated: () => void }) {
             <div><Label>Full name</Label><Input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></div>
             <div><Label>Username</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} required /></div>
           </div>
-          <div><Label>Password</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
+          <div><Label>Password</Label><PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
             <div>

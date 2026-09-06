@@ -7,11 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/PasswordInput";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Eye, EyeOff, KeyRound, Camera, Save, ShieldAlert, Trash2 } from "lucide-react";
+import { KeyRound, Camera, Save, ShieldAlert, Trash2 } from "lucide-react";
 import { usernameToEmail } from "@/lib/saft";
 import { changeMyUsername, changeMyPassword } from "@/lib/account.functions";
 import { adminWipeTestData } from "@/lib/admin.functions";
@@ -120,7 +121,6 @@ function DangerZoneCard() {
 function AdminKeyCard() {
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
-  const [show, setShow] = useState(false);
 
   useEffect(() => {
     getAdminAccessKey().then(setValue);
@@ -147,8 +147,7 @@ function AdminKeyCard() {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label>Access key</Label>
-          <Input
-            type={show ? "text" : "password"}
+          <PasswordInput
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="min-h-11 font-mono"
@@ -156,9 +155,6 @@ function AdminKeyCard() {
           />
         </div>
         <div className="flex items-center justify-between">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setShow((s) => !s)}>
-            {show ? <><EyeOff className="mr-2 h-4 w-4" /> Hide</> : <><Eye className="mr-2 h-4 w-4" /> Show</>}
-          </Button>
           <Button onClick={save} disabled={saving} className="min-h-11 bg-gradient-primary">
             <Save className="mr-2 h-4 w-4" /> {saving ? "Saving…" : "Save key"}
           </Button>
@@ -291,7 +287,6 @@ function PasswordCard({ profile }: { profile: any }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -322,13 +317,11 @@ function PasswordCard({ profile }: { profile: any }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-4">
-          <PwField label="Current password" value={current} onChange={setCurrent} show={show} />
-          <PwField label="New password" value={next} onChange={setNext} show={show} />
-          <PwField label="Confirm new password" value={confirm} onChange={setConfirm} show={show} />
+          <PwField label="Current password" value={current} onChange={setCurrent} />
+          <PwField label="New password" value={next} onChange={setNext} />
+          <PwField label="Confirm new password" value={confirm} onChange={setConfirm} />
           <div className="flex items-center justify-between">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setShow((s) => !s)}>
-              {show ? <><EyeOff className="mr-2 h-4 w-4" /> Hide</> : <><Eye className="mr-2 h-4 w-4" /> Show</>}
-            </Button>
+<div />
             <Button type="submit" disabled={saving} className="min-h-11 bg-gradient-primary">
               <ShieldAlert className="mr-2 h-4 w-4" /> {saving ? "Updating…" : "Update password"}
             </Button>
@@ -339,11 +332,11 @@ function PasswordCard({ profile }: { profile: any }) {
   );
 }
 
-function PwField({ label, value, onChange, show }: { label: string; value: string; onChange: (v: string) => void; show: boolean }) {
+function PwField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
-      <Input type={show ? "text" : "password"} value={value} onChange={(e) => onChange(e.target.value)} className="min-h-11" autoComplete="new-password" />
+      <PasswordInput value={value} onChange={(e) => onChange(e.target.value)} className="min-h-11" autoComplete="new-password" />
     </div>
   );
 }
