@@ -177,7 +177,7 @@ export const seniorityClass = (s?: string | null) => {
     case "super_senior": return "bg-primary/15 text-primary";
     case "senior": return "bg-success/15 text-success";
     case "junior": return "bg-warning/15 text-warning";
-    case "newbie": return "bg-muted text-muted-foreground";
+    case "newbie": return "bg-sky-100 text-sky-700";
     default: return "bg-muted text-muted-foreground";
   }
 };
