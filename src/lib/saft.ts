@@ -100,7 +100,7 @@ export function nextServiceDate(service: ServiceType, from: Date = nowIST()): Da
 }
 
 
-export function nextUpcomingService(from: Date = new Date()) {
+export function nextUpcomingService(from: Date = nowIST()) {
   let best: { service: ServiceType; date: Date } | null = null;
   for (const s of SERVICES) {
     const d = nextServiceDate(s.id, from);
@@ -142,7 +142,7 @@ export function formatDayMonthYear(d: Date | string) {
 
 
 /** Services ordered so the soonest upcoming one comes first. */
-export function servicesByNextDate(from: Date = new Date()) {
+export function servicesByNextDate(from: Date = nowIST()) {
   return [...SERVICES]
     .map((s) => ({ ...s, nextDate: nextServiceDate(s.id, from) }))
     .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime());
