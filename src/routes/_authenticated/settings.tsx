@@ -156,9 +156,6 @@ function AdminKeyCard() {
           />
         </div>
         <div className="flex items-center justify-between">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setShow((s) => !s)}>
-            {show ? <><EyeOff className="mr-2 h-4 w-4" /> Hide</> : <><Eye className="mr-2 h-4 w-4" /> Show</>}
-          </Button>
           <Button onClick={save} disabled={saving} className="min-h-11 bg-gradient-primary">
             <Save className="mr-2 h-4 w-4" /> {saving ? "Saving…" : "Save key"}
           </Button>
@@ -322,13 +319,11 @@ function PasswordCard({ profile }: { profile: any }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-4">
-          <PwField label="Current password" value={current} onChange={setCurrent} show={show} />
-          <PwField label="New password" value={next} onChange={setNext} show={show} />
-          <PwField label="Confirm new password" value={confirm} onChange={setConfirm} show={show} />
+          <PwField label="Current password" value={current} onChange={setCurrent} />
+          <PwField label="New password" value={next} onChange={setNext} />
+          <PwField label="Confirm new password" value={confirm} onChange={setConfirm} />
           <div className="flex items-center justify-between">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setShow((s) => !s)}>
-              {show ? <><EyeOff className="mr-2 h-4 w-4" /> Hide</> : <><Eye className="mr-2 h-4 w-4" /> Show</>}
-            </Button>
+<div />
             <Button type="submit" disabled={saving} className="min-h-11 bg-gradient-primary">
               <ShieldAlert className="mr-2 h-4 w-4" /> {saving ? "Updating…" : "Update password"}
             </Button>
@@ -339,7 +334,7 @@ function PasswordCard({ profile }: { profile: any }) {
   );
 }
 
-function PwField({ label, value, onChange, show }: { label: string; value: string; onChange: (v: string) => void; show: boolean }) {
+function PwField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
