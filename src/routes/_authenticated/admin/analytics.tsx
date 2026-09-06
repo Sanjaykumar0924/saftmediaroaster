@@ -322,8 +322,8 @@ function AnalyticsPage() {
       {/* Member-wise table */}
       <Card className="shadow-card">
         <CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /> Member-wise attendance</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
+        <CardContent className="overflow-x-auto p-0 sm:p-6">
+          <Table className="min-w-[560px] text-sm">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -341,7 +341,7 @@ function AnalyticsPage() {
               )}
               {perMember.map((m) => (
                 <TableRow key={m.name}>
-                  <TableCell className="font-medium">{m.name}</TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">{m.name}</TableCell>
                   <TableCell className="text-right">{m.total}</TableCell>
                   <TableCell className="text-right">{m.present}</TableCell>
                   <TableCell className="text-right">{m.absent}</TableCell>
@@ -358,8 +358,8 @@ function AnalyticsPage() {
       {/* Member by service */}
       <Card className="shadow-card">
         <CardHeader><CardTitle>Member attendance by service</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
+        <CardContent className="overflow-x-auto p-0 sm:p-6">
+          <Table className="min-w-[560px] text-sm">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -374,7 +374,7 @@ function AnalyticsPage() {
               )}
               {memberByService.map((m) => (
                 <TableRow key={m.name}>
-                  <TableCell className="font-medium">{m.name}</TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">{m.name}</TableCell>
                   {serviceKeys.map((k) => {
                     const cell = m.rec[k];
                     return (
@@ -396,12 +396,12 @@ function AnalyticsPage() {
           <CardContent className="space-y-3">
             {top.length === 0 && <div className="text-sm text-muted-foreground">No attendance data yet.</div>}
             {top.map((m, i) => (
-              <div key={m.name} className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-primary text-primary-foreground font-bold">{i + 1}</div>
-                  <div className="font-medium">{m.name}</div>
+              <div key={m.name} className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-primary text-primary-foreground font-bold">{i + 1}</div>
+                  <div className="truncate font-medium">{m.name}</div>
                 </div>
-                <Badge className="bg-success/15 text-success hover:bg-success/15">{m.rate}%</Badge>
+                <Badge className="shrink-0 bg-success/15 text-success hover:bg-success/15">{m.rate}%</Badge>
               </div>
             ))}
           </CardContent>
@@ -411,9 +411,9 @@ function AnalyticsPage() {
           <CardContent className="space-y-3">
             {lowest.length === 0 && <div className="text-sm text-muted-foreground">—</div>}
             {lowest.map((m) => (
-              <div key={m.name} className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
-                <div className="font-medium">{m.name}</div>
-                <Badge className="bg-destructive/15 text-destructive hover:bg-destructive/15">{m.rate}%</Badge>
+              <div key={m.name} className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 p-3">
+                <div className="truncate font-medium">{m.name}</div>
+                <Badge className="shrink-0 bg-destructive/15 text-destructive hover:bg-destructive/15">{m.rate}%</Badge>
               </div>
             ))}
           </CardContent>
@@ -426,9 +426,9 @@ function AnalyticsPage() {
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card className="shadow-card">
-      <CardContent className="pt-6">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-        <div className="mt-1 text-3xl font-bold">{value}</div>
+      <CardContent className="p-4 pt-4 sm:p-6 sm:pt-6">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground sm:text-xs">{label}</div>
+        <div className="mt-1 text-2xl font-bold sm:text-3xl">{value}</div>
       </CardContent>
     </Card>
   );
