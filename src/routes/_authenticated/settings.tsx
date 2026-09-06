@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Eye, EyeOff, KeyRound, Camera, Save, ShieldAlert, Trash2 } from "lucide-react";
+import { KeyRound, Camera, Save, ShieldAlert, Trash2 } from "lucide-react";
 import { usernameToEmail } from "@/lib/saft";
 import { changeMyUsername, changeMyPassword } from "@/lib/account.functions";
 import { adminWipeTestData } from "@/lib/admin.functions";
@@ -121,7 +121,6 @@ function DangerZoneCard() {
 function AdminKeyCard() {
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
-  const [show, setShow] = useState(false);
 
   useEffect(() => {
     getAdminAccessKey().then(setValue);
@@ -288,7 +287,6 @@ function PasswordCard({ profile }: { profile: any }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
