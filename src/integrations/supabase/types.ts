@@ -205,8 +205,10 @@ export type Database = {
           checked_at: string | null
           checked_by: string | null
           created_at: string
+          going_date: string | null
           id: string
           item_id: string
+          return_date: string | null
           returned: boolean
           returned_at: string | null
           returned_by: string | null
@@ -218,8 +220,10 @@ export type Database = {
           checked_at?: string | null
           checked_by?: string | null
           created_at?: string
+          going_date?: string | null
           id?: string
           item_id: string
+          return_date?: string | null
           returned?: boolean
           returned_at?: string | null
           returned_by?: string | null
@@ -231,8 +235,10 @@ export type Database = {
           checked_at?: string | null
           checked_by?: string | null
           created_at?: string
+          going_date?: string | null
           id?: string
           item_id?: string
+          return_date?: string | null
           returned?: boolean
           returned_at?: string | null
           returned_by?: string | null
@@ -405,6 +411,7 @@ export type Database = {
           created_by: string | null
           id: string
           item_name: string
+          nos: number
           notes: string | null
           status: Database["public"]["Enums"]["item_status"]
           updated_at: string
@@ -417,6 +424,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           item_name: string
+          nos?: number
           notes?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           updated_at?: string
@@ -429,6 +437,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           item_name?: string
+          nos?: number
           notes?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           updated_at?: string
@@ -589,6 +598,7 @@ export type Database = {
         Row: {
           assigned_user_id: string | null
           camera: string | null
+          card: string | null
           created_at: string
           created_by: string | null
           extra_service_id: string | null
@@ -599,11 +609,13 @@ export type Database = {
           service_date: string
           service_type: Database["public"]["Enums"]["service_type"]
           status: string
+          talkback: string | null
           updated_at: string
         }
         Insert: {
           assigned_user_id?: string | null
           camera?: string | null
+          card?: string | null
           created_at?: string
           created_by?: string | null
           extra_service_id?: string | null
@@ -614,11 +626,13 @@ export type Database = {
           service_date: string
           service_type: Database["public"]["Enums"]["service_type"]
           status?: string
+          talkback?: string | null
           updated_at?: string
         }
         Update: {
           assigned_user_id?: string | null
           camera?: string | null
+          card?: string | null
           created_at?: string
           created_by?: string | null
           extra_service_id?: string | null
@@ -629,6 +643,7 @@ export type Database = {
           service_date?: string
           service_type?: Database["public"]["Enums"]["service_type"]
           status?: string
+          talkback?: string | null
           updated_at?: string
         }
         Relationships: [
