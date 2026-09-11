@@ -104,8 +104,16 @@ function BuildRosterPage() {
 
 
   const availQ = useQuery({
-    queryKey: ["roster-avail", date, service],
+    queryKey: ["roster-avail", date, service, extraId],
     queryFn: async () => {
+      if (extraId) {
+        const { data, error } = await supabase
+          .from("extra_service_availability")
+          .select("user_id, status")
+          .eq("extra_service_id", extraId);
+        if (error) throw error;
+        return data ?? [];
+      }
       const { data } = await supabase
         .from("availability")
         .select("user_id, status")
@@ -116,10 +124,16 @@ function BuildRosterPage() {
   });
 
   const existingQ = useQuery({
-    queryKey: ["existing-roster", date, service],
+    queryKey: ["existing-roster", date, service, extraId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("roster").select("*").eq("service_date", date).eq("service_type", service);
+      let query = supabase
+        .from("roster")
+        .select("*")
+        .eq("service_date", date)
+        .eq("service_type", service);
+      query = extraId ? query.eq("extra_service_id", extraId) : query.is("extra_service_id", null);
+      const { data, error } = await query;
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -146,7 +160,13 @@ function BuildRosterPage() {
   useRealtimeInvalidate({
     table: "availability",
     filter: `service_date=eq.${date}`,
-    queryKeys: [["roster-avail", date, service]],
+    queryKeys: [["roster-avail", date, service, extraId ?? undefined]],
+  });
+  useRealtimeInvalidate({
+    table: "extra_service_availability",
+    filter: extraId ? `extra_service_id=eq.${extraId}` : undefined,
+    queryKeys: [["roster-avail", date, service, extraId ?? undefined]],
+    channelKey: `roster-extra-avail:${extraId ?? "none"}`,
   });
 
   const status: "draft" | "published" | "empty" = useMemo(() => {
@@ -204,11 +224,14 @@ function BuildRosterPage() {
   const saveDraft = async () => {
     const payload = buildRows("draft");
     if (payload.length === 0) { toast.error("Please add at least one role"); return; }
-    await supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
+    let deleteQuery = supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
+    deleteQuery = extraId ? deleteQuery.eq("extra_service_id", extraId) : deleteQuery.is("extra_service_id", null);
+    const { error: deleteError } = await deleteQuery;
+    if (deleteError) { toast.error(deleteError.message); return; }
     const { error } = await supabase.from("roster").insert(payload);
     if (error) { toast.error(error.message); return; }
     toast.info("Draft saved. Click 'Build & Publish Roster' when ready to make it viewable by everyone.");
-    qc.invalidateQueries({ queryKey: ["existing-roster", date, service] });
+    qc.invalidateQueries({ queryKey: ["existing-roster", date, service, extraId] });
     qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
   };
 
@@ -219,7 +242,10 @@ function BuildRosterPage() {
 
     setPublishing(true);
     try {
-      await supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
+      let deleteQuery = supabase.from("roster").delete().eq("service_date", date).eq("service_type", service);
+      deleteQuery = extraId ? deleteQuery.eq("extra_service_id", extraId) : deleteQuery.is("extra_service_id", null);
+      const { error: deleteError } = await deleteQuery;
+      if (deleteError) throw deleteError;
       const { error } = await supabase.from("roster").insert(payload);
       if (error) throw error;
       try {
@@ -257,7 +283,7 @@ function BuildRosterPage() {
       toast.success("🚀 Roster updated & published — viewable by everyone in the app!");
       qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
       qc.invalidateQueries({ queryKey: ["upcoming-roster-me"] });
-      qc.invalidateQueries({ queryKey: ["existing-roster", date, service] });
+      qc.invalidateQueries({ queryKey: ["existing-roster", date, service, extraId] });
       qc.invalidateQueries({ queryKey: ["roster-locks"] });
       qc.invalidateQueries({ queryKey: ["unread-roster"] });
     } catch (e: any) {
@@ -292,7 +318,7 @@ function BuildRosterPage() {
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
           <div className="col-span-2 sm:col-span-1">
             <Label className="text-xs">Service</Label>
-            <Select value={service} onValueChange={(v) => { setService(v as any); setDate(toDateOnly(nextServiceDate(v as ServiceType))); }}>
+            <Select value={service} onValueChange={(v) => { setExtraId(null); setService(v as ServiceType); setDate(toDateOnly(nextServiceDate(v as ServiceType))); }}>
               <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {SERVICES.map((s) => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}

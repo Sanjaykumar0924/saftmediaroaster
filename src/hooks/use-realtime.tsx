@@ -6,6 +6,7 @@ type Table =
   | "roster"
   | "attendance"
   | "availability"
+  | "extra_service_availability"
   | "notifications"
   | "announcements"
   | "profiles"
