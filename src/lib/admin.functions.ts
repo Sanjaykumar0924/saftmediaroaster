@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { DEFAULT_CARD_OPTIONS } from "@/lib/saft";
 
 async function ensureAdmin(context: any) {
   const userId = (context as any).userId;
@@ -284,5 +285,108 @@ export const adminWipeTestData = createServerFn({ method: "POST" })
     }
 
     return { ok: true, ...counts };
+  });
+
+export const getRosterCardOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: setting } = await supabaseAdmin
+        .from("app_settings")
+        .select("value")
+        .eq("key", "roster_card_options")
+        .maybeSingle();
+
+      let savedList: string[] = [];
+      if (setting?.value) {
+        try {
+          const parsed = JSON.parse(setting.value);
+          if (Array.isArray(parsed)) savedList = parsed;
+        } catch {
+          savedList = setting.value.split(",").map((s: string) => s.trim()).filter(Boolean);
+        }
+      }
+
+      // Also gather any cards assigned in the roster table
+      const { data: rosterRows } = await supabaseAdmin
+        .from("roster")
+        .select("card")
+        .not("card", "is", null);
+
+      const rosterCards = (rosterRows ?? [])
+        .map((r: any) => r.card?.trim())
+        .filter(Boolean);
+
+      const combined = Array.from(
+        new Set([...DEFAULT_CARD_OPTIONS, ...savedList, ...rosterCards])
+      );
+      return combined;
+    } catch {
+      return [...DEFAULT_CARD_OPTIONS];
+    }
+  });
+
+export const saveRosterCardOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: { options: string[] }) => data)
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const cleaned = Array.from(new Set(data.options.map((s) => s.trim()).filter(Boolean)));
+    const { error } = await supabaseAdmin
+      .from("app_settings")
+      .upsert(
+        {
+          key: "roster_card_options",
+          value: JSON.stringify(cleaned),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+    if (error) throw new Error(error.message);
+    return { ok: true, options: cleaned };
+  });
+
+export const adminRenameRosterCard = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: { oldName: string; newName: string }) => data)
+  .handler(async ({ data, context }) => {
+    await ensureAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const oldN = data.oldName.trim();
+    const newN = data.newName.trim();
+    if (!newN || oldN === newN) return { ok: true, renamed: oldN };
+
+    // Update roster table
+    await supabaseAdmin.from("roster").update({ card: newN }).eq("card", oldN);
+
+    // Update app_settings
+    const { data: setting } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "roster_card_options")
+      .maybeSingle();
+
+    let list: string[] = [];
+    if (setting?.value) {
+      try { list = JSON.parse(setting.value); } catch {}
+    }
+    const updated = Array.from(new Set(list.map((c) => (c.toLowerCase() === oldN.toLowerCase() ? newN : c))));
+    if (!updated.some((c) => c.toLowerCase() === newN.toLowerCase())) {
+      updated.push(newN);
+    }
+    await supabaseAdmin
+      .from("app_settings")
+      .upsert(
+        {
+          key: "roster_card_options",
+          value: JSON.stringify(updated),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+
+    return { ok: true, renamed: newN };
   });
 

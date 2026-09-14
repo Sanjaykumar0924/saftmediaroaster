@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -8,27 +9,31 @@ import { Badge } from "@/components/ui/badge";
 import { TALKBACK_OPTIONS, DEFAULT_CARD_OPTIONS } from "@/lib/saft";
 import { Check, X, Plus, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getRosterCardOptions,
+  saveRosterCardOptions,
+  adminRenameRosterCard,
+} from "@/lib/admin.functions";
 
 const NONE_VALUE = "__none__";
 const OTHER_VALUE = "__other__";
 
-export function isLegacyCardOption(name: string | null | undefined): boolean {
-  if (!name) return false;
-  const norm = name.toLowerCase().replace(/[\s\-_]/g, "");
-  if (/^cam(era)?\d*$/.test(norm)) return true;
-  if (norm === "4k" || norm === "4kcard" || norm === "atem") return true;
+export function isLegacyCardOption(_name: string | null | undefined): boolean {
   return false;
 }
 
 export function useRosterCardOptions(isAdmin: boolean = false) {
   const qc = useQueryClient();
+  const fetchCardOptions = useServerFn(getRosterCardOptions);
+  const saveCardOptions = useServerFn(saveRosterCardOptions);
+  const serverRenameCard = useServerFn(adminRenameRosterCard);
 
   const q = useQuery({
     queryKey: ["roster-card-options"],
     queryFn: async () => {
       let savedList: string[] = [];
 
-      // 1. Try local cache first
+      // 1. Try local cache first for immediate responsiveness
       try {
         const cached = localStorage.getItem("saft_roster_card_options");
         if (cached) {
@@ -39,60 +44,24 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
         }
       } catch {}
 
-      // 2. If admin or if cache was empty, try fetching from app_settings
+      // 2. Fetch authoritative options via server function
       try {
-        const { data } = await supabase
-          .from("app_settings")
-          .select("value")
-          .eq("key", "roster_card_options")
-          .maybeSingle();
-
-        if (data?.value) {
-          let parsed: string[] = [];
-          try {
-            parsed = JSON.parse(data.value);
-          } catch {
-            parsed = data.value.split(",").map((s) => s.trim()).filter(Boolean);
-          }
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            savedList = parsed;
-            try {
-              localStorage.setItem("saft_roster_card_options", JSON.stringify(savedList));
-            } catch {}
-          }
+        const serverList = await fetchCardOptions();
+        if (Array.isArray(serverList) && serverList.length > 0) {
+          savedList = Array.from(new Set([...savedList, ...serverList]));
         }
-      } catch {}
-
-      // Filter out any legacy Cam 1, 2, 3, 4K, ATEM items
-      const cleaned = savedList.filter((c) => c && !isLegacyCardOption(c));
+      } catch (err) {
+        console.warn("Could not fetch server card options:", err);
+      }
 
       const combined = Array.from(
-        new Set([...DEFAULT_CARD_OPTIONS, ...cleaned])
+        new Set([...DEFAULT_CARD_OPTIONS, ...savedList.filter(Boolean)])
       );
+
       try {
         localStorage.setItem("saft_roster_card_options", JSON.stringify(combined));
       } catch {}
 
-      if (isAdmin) {
-        if (savedList.some((c) => isLegacyCardOption(c))) {
-          supabase.from("app_settings").upsert({
-            key: "roster_card_options",
-            value: JSON.stringify(combined),
-            updated_at: new Date().toISOString(),
-          }).then(() => {});
-        }
-        // Clean up any legacy card values saved in the roster table
-        supabase
-          .from("roster")
-          .update({ card: null })
-          .in("card", [
-            "Cam 1", "Cam 2", "Cam 3", "Cam 4",
-            "Cam1", "Cam2", "Cam3", "Cam4",
-            "cam 1", "cam 2", "cam 3", "cam 4",
-            "4K", "4k", "4k card", "ATEM", "atem"
-          ])
-          .then(() => {});
-      }
       return combined;
     },
     staleTime: 60_000,
@@ -100,9 +69,9 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
 
   const addCard = async (newCard: string): Promise<string> => {
     const trimmed = newCard.trim();
-    if (!trimmed || isLegacyCardOption(trimmed)) return "";
+    if (!trimmed) return "";
 
-    const current = (q.data ?? [...DEFAULT_CARD_OPTIONS]).filter((c) => !isLegacyCardOption(c));
+    const current = q.data ?? [...DEFAULT_CARD_OPTIONS];
     const existing = current.find((c) => c.toLowerCase() === trimmed.toLowerCase());
     if (existing) {
       return existing;
@@ -116,15 +85,9 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
 
     if (isAdmin) {
       try {
-        await supabase
-          .from("app_settings")
-          .upsert({
-            key: "roster_card_options",
-            value: JSON.stringify(updated),
-            updated_at: new Date().toISOString(),
-          });
+        await saveCardOptions({ data: { options: updated } });
       } catch (e) {
-        console.warn("Could not save card to app_settings:", e);
+        console.warn("Could not save card to server:", e);
       }
     }
 
@@ -138,7 +101,7 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
       return trimmedOld;
     }
 
-    const current = (q.data ?? [...DEFAULT_CARD_OPTIONS]).filter((c) => !isLegacyCardOption(c));
+    const current = q.data ?? [...DEFAULT_CARD_OPTIONS];
     const updated = current.map((c) =>
       c.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : c
     );
@@ -153,25 +116,9 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
 
     if (isAdmin) {
       try {
-        await supabase
-          .from("app_settings")
-          .upsert({
-            key: "roster_card_options",
-            value: JSON.stringify(updated),
-            updated_at: new Date().toISOString(),
-          });
+        await serverRenameCard({ data: { oldName: trimmedOld, newName: trimmedNew } });
       } catch (e) {
-        console.warn("Could not save card to app_settings:", e);
-      }
-
-      // Also update any existing roster rows where card == oldName
-      try {
-        await supabase
-          .from("roster")
-          .update({ card: trimmedNew })
-          .eq("card", trimmedOld);
-      } catch (e) {
-        console.warn("Could not update roster rows with renamed card:", e);
+        console.warn("Could not rename card on server:", e);
       }
     }
 
@@ -179,7 +126,7 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
   };
 
   return {
-    cardOptions: (q.data ?? [...DEFAULT_CARD_OPTIONS]).filter((c) => !isLegacyCardOption(c)),
+    cardOptions: q.data ?? [...DEFAULT_CARD_OPTIONS],
     addCard,
     renameCard,
     isLoading: q.isLoading,
@@ -257,13 +204,14 @@ export function CardSelect({
   const [targetCard, setTargetCard] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
-  const cleanValue = value && value.trim() && !isLegacyCardOption(value.trim()) ? value.trim() : null;
+  const cleanValue = value && value.trim() ? value.trim() : null;
   const currentVal = cleanValue ?? NONE_VALUE;
 
-  // Options list ensuring Card 1, Card 2 are present, legacy items removed, and current custom value included
+  // Options list ensuring DEFAULT_CARD_OPTIONS, all user cardOptions, and current assigned value are included
   const allOptions = Array.from(
     new Set([
-      ...cardOptions.filter((c) => !isLegacyCardOption(c)),
+      ...DEFAULT_CARD_OPTIONS,
+      ...cardOptions,
       ...(cleanValue ? [cleanValue] : []),
     ])
   );
@@ -277,7 +225,8 @@ export function CardSelect({
     setSubmitting(true);
     try {
       const created = await onAddCard(trimmed);
-      onChange(created || trimmed);
+      const cardToSet = typeof created === "string" && created.trim() ? created.trim() : trimmed;
+      onChange(cardToSet);
       setInputVal("");
       setMode("idle");
     } catch {
@@ -487,7 +436,7 @@ export function TalkbackBadge({ value }: { value: string | null | undefined }) {
 }
 
 export function CardBadge({ value }: { value: string | null | undefined }) {
-  if (!value || !value.trim() || isLegacyCardOption(value.trim())) {
+  if (!value || !value.trim()) {
     return <span className="text-muted-foreground">—</span>;
   }
   return (

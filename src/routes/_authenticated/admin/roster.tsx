@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,12 +74,26 @@ function BuildRosterPage() {
   const [rows, setRows] = useState<SlotRow[]>(defaultRows);
   const [publishing, setPublishing] = useState(false);
   const [extraId, setExtraId] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const currentKey = `${date}__${service}__${extraId ?? "none"}`;
+  const draftKey = `saft_roster_draft_${date}_${service}_${extraId ?? "none"}`;
+  const loadedKeyRef = useRef<string | null>(null);
+
+  const saveLocalDraft = (updatedRows: SlotRow[]) => {
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(updatedRows));
+      setIsDirty(true);
+    } catch {}
+  };
 
   const handleRenameCard = async (oldName: string, newName: string) => {
     const renamed = await renameCard(oldName, newName);
-    setRows((prev) =>
-      prev.map((r) => (r.card === oldName ? { ...r, card: renamed } : r))
-    );
+    setRows((prev) => {
+      const next = prev.map((r) => (r.card === oldName ? { ...r, card: renamed } : r));
+      saveLocalDraft(next);
+      return next;
+    });
     toast.success(`Card "${oldName}" renamed to "${renamed}"`);
     return renamed;
   };
@@ -153,26 +167,84 @@ function BuildRosterPage() {
     },
   });
 
-  // Hydrate the editable table from what's already saved for this service/date.
+  // Hydrate the editable table safely without losing in-progress card additions or volunteer assignments
   useEffect(() => {
-    const data = existingQ.data;
-    if (!data) return;
-    if (data.length === 0) {
-      setRows(defaultRows());
+    if (existingQ.isLoading) return;
+
+    const isKeyChange = loadedKeyRef.current !== currentKey;
+    if (!isKeyChange && isDirty) {
+      // Don't overwrite unsaved user additions on background refetches
       return;
     }
-    setRows(
-      data.map((r: any) => ({
-        key: newKey(),
-        role: r.role,
-        camera: r.camera ?? null,
-        talkback: r.talkback ?? null,
-        card: r.card ?? null,
-        notes: extractNotesAndName(r.notes).cleanNotes || null,
-        assigned: r.assigned_user_id ?? null,
-      })),
-    );
-  }, [existingQ.data]);
+
+    loadedKeyRef.current = currentKey;
+    const data = existingQ.data ?? [];
+
+    // 1. If DB already has saved rows:
+    if (data.length > 0) {
+      const isPublished = data.every((r: any) => r.status === "published");
+      if (isPublished) {
+        try { localStorage.removeItem(draftKey); } catch {}
+        setIsDirty(false);
+        setRows(
+          data.map((r: any) => ({
+            key: newKey(),
+            role: r.role,
+            camera: r.camera ?? null,
+            talkback: r.talkback ?? null,
+            card: r.card ?? null,
+            notes: extractNotesAndName(r.notes).cleanNotes || null,
+            assigned: r.assigned_user_id ?? null,
+          }))
+        );
+        return;
+      }
+
+      // DB has draft rows: check if there is an unsaved local draft for this key
+      try {
+        const local = localStorage.getItem(draftKey);
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRows(parsed);
+            setIsDirty(true);
+            return;
+          }
+        }
+      } catch {}
+
+      setIsDirty(false);
+      setRows(
+        data.map((r: any) => ({
+          key: newKey(),
+          role: r.role,
+          camera: r.camera ?? null,
+          talkback: r.talkback ?? null,
+          card: r.card ?? null,
+          notes: extractNotesAndName(r.notes).cleanNotes || null,
+          assigned: r.assigned_user_id ?? null,
+        }))
+      );
+      return;
+    }
+
+    // 2. DB has no rows: check local draft (e.g. card added before publish)
+    try {
+      const local = localStorage.getItem(draftKey);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRows(parsed);
+          setIsDirty(true);
+          return;
+        }
+      }
+    } catch {}
+
+    // 3. Fallback to default rows
+    setIsDirty(false);
+    setRows(defaultRows());
+  }, [currentKey, existingQ.data, existingQ.isLoading, draftKey, isDirty]);
 
   useRealtimeInvalidate({
     table: "availability",
@@ -188,9 +260,9 @@ function BuildRosterPage() {
 
   const status: "draft" | "published" | "empty" = useMemo(() => {
     const saved = existingQ.data ?? [];
-    if (saved.length === 0) return "empty";
+    if (saved.length === 0) return isDirty ? "draft" : "empty";
     return saved.every((r: any) => r.status === "published") ? "published" : "draft";
-  }, [existingQ.data]);
+  }, [existingQ.data, isDirty]);
 
   const availableIds = new Set(
     (availQ.data ?? []).filter((a: any) => a.status === "available").map((a: any) => a.user_id),
@@ -208,25 +280,41 @@ function BuildRosterPage() {
     return c;
   }, [rows]);
 
-  const patchRow = (key: string, patch: Partial<SlotRow>) =>
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const patchRow = (key: string, patch: Partial<SlotRow>) => {
+    setRows((prev) => {
+      const next = prev.map((r) => (r.key === key ? { ...r, ...patch } : r));
+      saveLocalDraft(next);
+      return next;
+    });
+  };
 
-  const addRow = () =>
-    setRows((prev) => [
-      ...prev,
-      {
-        key: newKey(),
-        role: ROLE_OPTIONS[0],
-        camera: null,
-        talkback: null,
-        card: null,
-        notes: null,
-        assigned: null,
-        editing: true,
-      },
-    ]);
+  const addRow = () => {
+    setRows((prev) => {
+      const next = [
+        ...prev,
+        {
+          key: newKey(),
+          role: ROLE_OPTIONS[0],
+          camera: null,
+          talkback: null,
+          card: null,
+          notes: null,
+          assigned: null,
+          editing: true,
+        },
+      ];
+      saveLocalDraft(next);
+      return next;
+    });
+  };
 
-  const deleteRow = (key: string) => setRows((prev) => prev.filter((r) => r.key !== key));
+  const deleteRow = (key: string) => {
+    setRows((prev) => {
+      const next = prev.filter((r) => r.key !== key);
+      saveLocalDraft(next);
+      return next;
+    });
+  };
 
   const buildRows = (rosterStatus: "draft" | "published") =>
     rows
@@ -258,6 +346,8 @@ function BuildRosterPage() {
     if (deleteError) { toast.error(deleteError.message); return; }
     const { error } = await supabase.from("roster").insert(payload);
     if (error) { toast.error(error.message); return; }
+    try { localStorage.setItem(draftKey, JSON.stringify(rows)); } catch {}
+    setIsDirty(false);
     toast.info("Draft saved. Click 'Build & Publish Roster' when ready to make it viewable by everyone.");
     qc.invalidateQueries({ queryKey: ["existing-roster", date, service, extraId] });
     qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
@@ -308,6 +398,10 @@ function BuildRosterPage() {
         console.warn("Directory sync skipped:", dirErr);
       }
 
+      try { localStorage.removeItem(draftKey); } catch {}
+      setIsDirty(false);
+      loadedKeyRef.current = "";
+
       toast.success("🚀 Roster updated & published — viewable by everyone in the app!");
       qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
       qc.invalidateQueries({ queryKey: ["upcoming-roster-me"] });
@@ -324,15 +418,17 @@ function BuildRosterPage() {
     const pool = [...availableMembers];
     const load: Record<string, number> = {};
     pool.forEach((m: any) => (load[m.id] = 0));
-    setRows((prev) =>
-      prev.map((r) => {
+    setRows((prev) => {
+      const next = prev.map((r) => {
         if (r.assigned) return r;
         const cand = pool.sort((a: any, b: any) => load[a.id] - load[b.id])[0];
         if (!cand) return r;
         load[cand.id]++;
         return { ...r, assigned: cand.id };
-      }),
-    );
+      });
+      saveLocalDraft(next);
+      return next;
+    });
     toast.success("Suggested a fair assignment. Click 'Build & Publish Roster' to save.");
   };
 
