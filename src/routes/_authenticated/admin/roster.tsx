@@ -68,12 +68,21 @@ const defaultRows = (): SlotRow[] =>
 function BuildRosterPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const { cardOptions, addCard } = useRosterCardOptions(true);
+  const { cardOptions, addCard, renameCard } = useRosterCardOptions(true);
   const [service, setService] = useState<ServiceType>("sunday_morning");
   const [date, setDate] = useState<string>(toDateOnly(nextServiceDate("sunday_morning")));
   const [rows, setRows] = useState<SlotRow[]>(defaultRows);
   const [publishing, setPublishing] = useState(false);
   const [extraId, setExtraId] = useState<string | null>(null);
+
+  const handleRenameCard = async (oldName: string, newName: string) => {
+    const renamed = await renameCard(oldName, newName);
+    setRows((prev) =>
+      prev.map((r) => (r.card === oldName ? { ...r, card: renamed } : r))
+    );
+    toast.success(`Card "${oldName}" renamed to "${renamed}"`);
+    return renamed;
+  };
 
   const extrasQ = useQuery({
     queryKey: ["roster-extra-services"],
@@ -468,6 +477,7 @@ function BuildRosterPage() {
                         value={r.card}
                         cardOptions={cardOptions}
                         onAddCard={addCard}
+                        onRenameCard={handleRenameCard}
                         onChange={(v) => patchRow(r.key, { card: v })}
                       />
                     </TableCell>

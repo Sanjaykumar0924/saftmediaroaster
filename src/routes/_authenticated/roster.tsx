@@ -48,7 +48,15 @@ function RosterViewPage() {
   const { user, isAdmin } = useAuth();
   const qc = useQueryClient();
   const fetchDirectory = useServerFn(getMemberDirectory);
-  const { cardOptions, addCard } = useRosterCardOptions(isAdmin);
+  const { cardOptions, addCard, renameCard } = useRosterCardOptions(isAdmin);
+
+  const handleRenameCard = async (oldName: string, newName: string) => {
+    const renamed = await renameCard(oldName, newName);
+    toast.success(`Card "${oldName}" renamed to "${renamed}"`);
+    qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
+    qc.invalidateQueries({ queryKey: ["upcoming-roster-me"] });
+    return renamed;
+  };
 
   const q = useQuery({
     queryKey: ["all-upcoming-roster", isAdmin],
@@ -300,6 +308,7 @@ function RosterViewPage() {
             isAdmin={isAdmin}
             cardOptions={cardOptions}
             onAddCard={addCard}
+            onRenameCard={handleRenameCard}
             onUpdateTalkback={handleUpdateTalkback}
             onUpdateCard={handleUpdateCard}
           />
@@ -312,6 +321,7 @@ function RosterViewPage() {
             isAdmin={isAdmin}
             cardOptions={cardOptions}
             onAddCard={addCard}
+            onRenameCard={handleRenameCard}
             onUpdateTalkback={handleUpdateTalkback}
             onUpdateCard={handleUpdateCard}
           />
@@ -324,6 +334,7 @@ function RosterViewPage() {
             isAdmin={isAdmin}
             cardOptions={cardOptions}
             onAddCard={addCard}
+            onRenameCard={handleRenameCard}
             onUpdateTalkback={handleUpdateTalkback}
             onUpdateCard={handleUpdateCard}
           />
@@ -381,6 +392,7 @@ function RosterList({
   isAdmin = false,
   cardOptions = [],
   onAddCard,
+  onRenameCard,
   onUpdateTalkback,
   onUpdateCard,
 }: {
@@ -390,6 +402,7 @@ function RosterList({
   isAdmin?: boolean;
   cardOptions?: string[];
   onAddCard?: (name: string) => Promise<string | void>;
+  onRenameCard?: (oldName: string, newName: string) => Promise<string | void>;
   onUpdateTalkback?: (rowId: string, val: string | null) => Promise<void>;
   onUpdateCard?: (rowId: string, val: string | null) => Promise<void>;
 }) {
@@ -454,6 +467,7 @@ function RosterList({
                               value={r.card}
                               cardOptions={cardOptions}
                               onAddCard={onAddCard}
+                              onRenameCard={onRenameCard}
                               onChange={(val) => onUpdateCard(r.id, val)}
                             />
                           ) : (
