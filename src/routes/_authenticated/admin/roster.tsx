@@ -41,6 +41,7 @@ export const Route = createFileRoute("/_authenticated/admin/roster")({
 });
 
 type SlotRow = {
+  id?: string;
   key: string;
   role: string;
   camera: string | null;
@@ -188,7 +189,8 @@ function BuildRosterPage() {
         setIsDirty(false);
         setRows(
           data.map((r: any) => ({
-            key: newKey(),
+            id: r.id,
+            key: r.id || newKey(),
             role: r.role,
             camera: r.camera ?? null,
             talkback: r.talkback ?? null,
@@ -216,7 +218,8 @@ function BuildRosterPage() {
       setIsDirty(false);
       setRows(
         data.map((r: any) => ({
-          key: newKey(),
+          id: r.id,
+          key: r.id || newKey(),
           role: r.role,
           camera: r.camera ?? null,
           talkback: r.talkback ?? null,
@@ -260,9 +263,9 @@ function BuildRosterPage() {
 
   const status: "draft" | "published" | "empty" = useMemo(() => {
     const saved = existingQ.data ?? [];
-    if (saved.length === 0) return isDirty ? "draft" : "empty";
+    if (saved.length === 0) return "empty";
     return saved.every((r: any) => r.status === "published") ? "published" : "draft";
-  }, [existingQ.data, isDirty]);
+  }, [existingQ.data]);
 
   const availableIds = new Set(
     (availQ.data ?? []).filter((a: any) => a.status === "available").map((a: any) => a.user_id),
@@ -286,6 +289,30 @@ function BuildRosterPage() {
       saveLocalDraft(next);
       return next;
     });
+
+    const targetRow = rows.find((r) => r.key === key);
+    if (targetRow?.id && status === "published") {
+      const updatePayload: any = {};
+      if (patch.card !== undefined) updatePayload.card = patch.card;
+      if (patch.talkback !== undefined) updatePayload.talkback = patch.talkback;
+      if (patch.camera !== undefined) updatePayload.camera = patch.camera;
+      if (patch.notes !== undefined) updatePayload.notes = patch.notes;
+      if (patch.role !== undefined) updatePayload.role = patch.role;
+      if (patch.assigned !== undefined) updatePayload.assigned_user_id = patch.assigned;
+
+      if (Object.keys(updatePayload).length > 0) {
+        supabase
+          .from("roster")
+          .update(updatePayload)
+          .eq("id", targetRow.id)
+          .then(({ error }) => {
+            if (!error) {
+              qc.invalidateQueries({ queryKey: ["existing-roster", date, service, extraId] });
+              qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
+            }
+          });
+      }
+    }
   };
 
   const addRow = () => {
