@@ -11,7 +11,14 @@ import { cn } from "@/lib/utils";
 
 const NONE_VALUE = "__none__";
 const OTHER_VALUE = "__other__";
-const RENAME_VALUE = "__rename__";
+
+export function isLegacyCardOption(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const norm = name.toLowerCase().replace(/[\s\-_]/g, "");
+  if (/^cam(era)?\d*$/.test(norm)) return true;
+  if (norm === "4k" || norm === "4kcard" || norm === "atem") return true;
+  return false;
+}
 
 export function useRosterCardOptions(isAdmin: boolean = false) {
   const qc = useQueryClient();
@@ -56,14 +63,36 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
         }
       } catch {}
 
-      // Remove legacy default cards (e.g. "4k card" or "4k") so default is purely "Card 1"
-      const cleaned = savedList.filter(
-        (c) => c && c.toLowerCase() !== "4k card" && c.toLowerCase() !== "4k"
-      );
+      // Filter out any legacy Cam 1, 2, 3, 4K, ATEM items
+      const cleaned = savedList.filter((c) => c && !isLegacyCardOption(c));
 
       const combined = Array.from(
         new Set([...DEFAULT_CARD_OPTIONS, ...cleaned])
       );
+      try {
+        localStorage.setItem("saft_roster_card_options", JSON.stringify(combined));
+      } catch {}
+
+      if (isAdmin) {
+        if (savedList.some((c) => isLegacyCardOption(c))) {
+          supabase.from("app_settings").upsert({
+            key: "roster_card_options",
+            value: JSON.stringify(combined),
+            updated_at: new Date().toISOString(),
+          }).then(() => {});
+        }
+        // Clean up any legacy card values saved in the roster table
+        supabase
+          .from("roster")
+          .update({ card: null })
+          .in("card", [
+            "Cam 1", "Cam 2", "Cam 3", "Cam 4",
+            "Cam1", "Cam2", "Cam3", "Cam4",
+            "cam 1", "cam 2", "cam 3", "cam 4",
+            "4K", "4k", "4k card", "ATEM", "atem"
+          ])
+          .then(() => {});
+      }
       return combined;
     },
     staleTime: 60_000,
@@ -71,9 +100,9 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
 
   const addCard = async (newCard: string): Promise<string> => {
     const trimmed = newCard.trim();
-    if (!trimmed) return "";
+    if (!trimmed || isLegacyCardOption(trimmed)) return "";
 
-    const current = q.data ?? [...DEFAULT_CARD_OPTIONS];
+    const current = (q.data ?? [...DEFAULT_CARD_OPTIONS]).filter((c) => !isLegacyCardOption(c));
     const existing = current.find((c) => c.toLowerCase() === trimmed.toLowerCase());
     if (existing) {
       return existing;
@@ -109,7 +138,7 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
       return trimmedOld;
     }
 
-    const current = q.data ?? [...DEFAULT_CARD_OPTIONS];
+    const current = (q.data ?? [...DEFAULT_CARD_OPTIONS]).filter((c) => !isLegacyCardOption(c));
     const updated = current.map((c) =>
       c.toLowerCase() === trimmedOld.toLowerCase() ? trimmedNew : c
     );
@@ -150,7 +179,7 @@ export function useRosterCardOptions(isAdmin: boolean = false) {
   };
 
   return {
-    cardOptions: q.data ?? [...DEFAULT_CARD_OPTIONS],
+    cardOptions: (q.data ?? [...DEFAULT_CARD_OPTIONS]).filter((c) => !isLegacyCardOption(c)),
     addCard,
     renameCard,
     isLoading: q.isLoading,
@@ -228,11 +257,15 @@ export function CardSelect({
   const [targetCard, setTargetCard] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
-  const currentVal = value && value.trim() ? value.trim() : NONE_VALUE;
+  const cleanValue = value && value.trim() && !isLegacyCardOption(value.trim()) ? value.trim() : null;
+  const currentVal = cleanValue ?? NONE_VALUE;
 
-  // Options list ensuring current value is included if present
+  // Options list ensuring Card 1, Card 2 are present, legacy items removed, and current custom value included
   const allOptions = Array.from(
-    new Set([...cardOptions, ...(value && value.trim() ? [value.trim()] : [])])
+    new Set([
+      ...cardOptions.filter((c) => !isLegacyCardOption(c)),
+      ...(cleanValue ? [cleanValue] : []),
+    ])
   );
 
   const handleCreateCard = async () => {
@@ -264,7 +297,7 @@ export function CardSelect({
     try {
       if (onRenameCard) {
         const renamed = await onRenameCard(targetCard, trimmed);
-        if (value === targetCard) {
+        if (cleanValue === targetCard) {
           onChange(renamed || trimmed);
         }
       }
@@ -382,13 +415,6 @@ export function CardSelect({
             setMode("adding");
             return;
           }
-          if (v === RENAME_VALUE) {
-            const toRename = value && value.trim() ? value.trim() : (allOptions[0] || "Card 1");
-            setTargetCard(toRename);
-            setInputVal(toRename);
-            setMode("renaming");
-            return;
-          }
           onChange(v === NONE_VALUE ? null : v);
         }}
         disabled={disabled}
@@ -396,13 +422,13 @@ export function CardSelect({
         <SelectTrigger
           className={cn(
             "h-9 w-full min-w-[110px] text-xs font-medium",
-            value ? "font-semibold text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+            cleanValue ? "font-semibold text-amber-600 dark:text-amber-400" : "text-muted-foreground",
             className
           )}
         >
           <SelectValue placeholder="— Card —">
-            {value ? (
-              <span className="font-semibold text-amber-600 dark:text-amber-400">{value}</span>
+            {cleanValue ? (
+              <span className="font-semibold text-amber-600 dark:text-amber-400">{cleanValue}</span>
             ) : (
               <span className="text-muted-foreground">—</span>
             )}
@@ -423,30 +449,21 @@ export function CardSelect({
               <Plus className="h-3 w-3" /> Other… (Add new card)
             </span>
           </SelectItem>
-          {onRenameCard && (
-            <SelectItem
-              value={RENAME_VALUE}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              <span className="flex items-center gap-1">
-                <Pencil className="h-3 w-3" /> Rename {value ? `"${value}"` : "card"}…
-              </span>
-            </SelectItem>
-          )}
         </SelectContent>
       </Select>
 
-      {onRenameCard && value && (
+      {onRenameCard && cleanValue && (
         <Button
+          type="button"
           size="icon"
           variant="ghost"
           className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
           onClick={() => {
-            setTargetCard(value.trim());
-            setInputVal(value.trim());
+            setTargetCard(cleanValue);
+            setInputVal(cleanValue);
             setMode("renaming");
           }}
-          title={`Rename "${value}"`}
+          title={`Rename "${cleanValue}"`}
         >
           <Pencil className="h-3.5 w-3.5" />
         </Button>
@@ -470,7 +487,7 @@ export function TalkbackBadge({ value }: { value: string | null | undefined }) {
 }
 
 export function CardBadge({ value }: { value: string | null | undefined }) {
-  if (!value || !value.trim()) {
+  if (!value || !value.trim() || isLegacyCardOption(value.trim())) {
     return <span className="text-muted-foreground">—</span>;
   }
   return (
@@ -482,3 +499,4 @@ export function CardBadge({ value }: { value: string | null | undefined }) {
     </Badge>
   );
 }
+
