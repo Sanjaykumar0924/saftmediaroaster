@@ -9,6 +9,7 @@ import { formatServiceDate, nextUpcomingService, serviceLabel, servicesByNextDat
 import { CalendarClock, Sparkles, Trophy, CheckCircle2, XCircle, HelpCircle, Clock, ArrowRight } from "lucide-react";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { toast } from "sonner";
+import { TalkbackBadge, CardBadge } from "@/components/RosterFieldSelects";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -154,6 +155,12 @@ function Dashboard() {
                       <Badge className="bg-primary/10 text-primary hover:bg-primary/10">{r.role}</Badge>
                       {r.camera && (
                         <Badge className="bg-warning/15 text-warning hover:bg-warning/15">{r.camera}</Badge>
+                      )}
+                      {r.talkback && (
+                        <TalkbackBadge value={r.talkback} />
+                      )}
+                      {r.card && (
+                        <CardBadge value={r.card} />
                       )}
                       {r.notes && (
                         <Badge variant="outline" className="font-normal text-muted-foreground">{extractNotesAndName(r.notes).cleanNotes}</Badge>

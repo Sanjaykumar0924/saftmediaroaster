@@ -7,7 +7,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  */
 export const submitChecklistReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { service_id: string; kind: "safe" | "issue"; comment?: string }) => data)
+  .validator((data: { service_id: string; kind: "safe" | "issue"; comment?: string }) => data)
   .handler(async ({ data, context }) => {
     if (data.kind === "issue" && !data.comment?.trim()) {
       throw new Error("Please describe the issue");

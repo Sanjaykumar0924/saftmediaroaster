@@ -41,6 +41,10 @@ export const ROLE_OPTIONS = [
 
 export const CAMERA_OPTIONS = ["Cam 1", "Cam 2", "Cam 3", "Cam 4", "4K", "Drone", "Handheld", "—"];
 
+export const TALKBACK_OPTIONS = ["TB-1", "TB-2", "TB-3", "TB-4", "TB-5"] as const;
+
+export const DEFAULT_CARD_OPTIONS = ["4k card"] as const;
+
 export const FRAME_OPTIONS = [
   "Single Frame Worship Leader",
   "Pastor Close Shot",

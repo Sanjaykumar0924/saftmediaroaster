@@ -22,6 +22,7 @@ import { Sparkles, Save, Printer, Send, FileEdit, CheckCircle2, Plus, Trash2, Pe
 import { useAuth } from "@/lib/auth";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { cn } from "@/lib/utils";
+import { TalkbackSelect, CardSelect, useRosterCardOptions } from "@/components/RosterFieldSelects";
 
 import { ensureCurrentAdmin } from "@/lib/admin.functions";
 
@@ -43,6 +44,8 @@ type SlotRow = {
   key: string;
   role: string;
   camera: string | null;
+  talkback: string | null;
+  card: string | null;
   notes: string | null;
   assigned: string | null;
   editing?: boolean;
@@ -56,6 +59,8 @@ const defaultRows = (): SlotRow[] =>
     key: newKey(),
     role: r.role,
     camera: r.camera ?? null,
+    talkback: null,
+    card: null,
     notes: r.defaultNotes ?? null,
     assigned: null,
   }));
@@ -63,6 +68,7 @@ const defaultRows = (): SlotRow[] =>
 function BuildRosterPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { cardOptions, addCard } = useRosterCardOptions(true);
   const [service, setService] = useState<ServiceType>("sunday_morning");
   const [date, setDate] = useState<string>(toDateOnly(nextServiceDate("sunday_morning")));
   const [rows, setRows] = useState<SlotRow[]>(defaultRows);
@@ -151,6 +157,8 @@ function BuildRosterPage() {
         key: newKey(),
         role: r.role,
         camera: r.camera ?? null,
+        talkback: r.talkback ?? null,
+        card: r.card ?? null,
         notes: extractNotesAndName(r.notes).cleanNotes || null,
         assigned: r.assigned_user_id ?? null,
       })),
@@ -197,7 +205,16 @@ function BuildRosterPage() {
   const addRow = () =>
     setRows((prev) => [
       ...prev,
-      { key: newKey(), role: ROLE_OPTIONS[0], camera: null, notes: null, assigned: null, editing: true },
+      {
+        key: newKey(),
+        role: ROLE_OPTIONS[0],
+        camera: null,
+        talkback: null,
+        card: null,
+        notes: null,
+        assigned: null,
+        editing: true,
+      },
     ]);
 
   const deleteRow = (key: string) => setRows((prev) => prev.filter((r) => r.key !== key));
@@ -212,6 +229,8 @@ function BuildRosterPage() {
           service_type: service,
           role: r.role,
           camera: r.camera,
+          talkback: r.talkback || null,
+          card: r.card || null,
           assigned_user_id: r.assigned || null,
           notes: embedNameToNotes(r.notes, assignedVolunteerName),
           created_by: user?.id ?? null,
@@ -412,6 +431,8 @@ function BuildRosterPage() {
                 <TableRow>
                   <TableHead>Role</TableHead>
                   <TableHead>Camera</TableHead>
+                  <TableHead className="min-w-[105px]">Talkback</TableHead>
+                  <TableHead className="min-w-[135px]">Card</TableHead>
                   <TableHead>Frame / Notes</TableHead>
                   <TableHead className="w-56 sm:w-64">Assign Member</TableHead>
                   <TableHead className="w-24 text-right">Actions</TableHead>
@@ -435,6 +456,20 @@ function BuildRosterPage() {
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <TalkbackSelect
+                        value={r.talkback}
+                        onChange={(v) => patchRow(r.key, { talkback: v })}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <CardSelect
+                        value={r.card}
+                        cardOptions={cardOptions}
+                        onAddCard={addCard}
+                        onChange={(v) => patchRow(r.key, { card: v })}
+                      />
                     </TableCell>
                     <TableCell>
                       {r.editing ? (
@@ -500,7 +535,7 @@ function BuildRosterPage() {
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                       No rows yet — use “Add row” to build this roster.
                     </TableCell>
                   </TableRow>

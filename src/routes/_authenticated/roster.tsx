@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getMemberDirectory } from "@/lib/directory.functions";
@@ -16,8 +16,13 @@ import { useRealtimeInvalidate } from "@/hooks/use-realtime";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-
-
+import {
+  TalkbackSelect,
+  CardSelect,
+  TalkbackBadge,
+  CardBadge,
+  useRosterCardOptions,
+} from "@/components/RosterFieldSelects";
 
 type RosterRow = {
   id: string;
@@ -25,6 +30,8 @@ type RosterRow = {
   service_type: string;
   role: string;
   camera: string | null;
+  talkback?: string | null;
+  card?: string | null;
   assigned_user_id: string | null;
   notes: string | null;
   status: string;
@@ -39,7 +46,9 @@ export const Route = createFileRoute("/_authenticated/roster")({
 
 function RosterViewPage() {
   const { user, isAdmin } = useAuth();
+  const qc = useQueryClient();
   const fetchDirectory = useServerFn(getMemberDirectory);
+  const { cardOptions, addCard } = useRosterCardOptions(isAdmin);
 
   const q = useQuery({
     queryKey: ["all-upcoming-roster", isAdmin],
@@ -144,6 +153,8 @@ function RosterViewPage() {
 
         return {
           ...r,
+          talkback: r.talkback ?? null,
+          card: r.card ?? null,
           notes: cleanNotes,
           extra_service: r.extra_service_id ? extraById.get(r.extra_service_id) ?? null : null,
           profiles: r.assigned_user_id
@@ -153,6 +164,34 @@ function RosterViewPage() {
       });
     },
   });
+
+  const handleUpdateTalkback = async (rowId: string, talkback: string | null) => {
+    qc.setQueryData(["all-upcoming-roster", isAdmin], (old: any[] | undefined) =>
+      old ? old.map((row) => (row.id === rowId ? { ...row, talkback } : row)) : old
+    );
+    const { error } = await supabase.from("roster").update({ talkback }).eq("id", rowId);
+    if (error) {
+      toast.error("Failed to update talkback: " + error.message);
+    } else {
+      toast.success(talkback ? `Talkback set to ${talkback}` : "Talkback cleared");
+    }
+    qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
+    qc.invalidateQueries({ queryKey: ["upcoming-roster-me"] });
+  };
+
+  const handleUpdateCard = async (rowId: string, card: string | null) => {
+    qc.setQueryData(["all-upcoming-roster", isAdmin], (old: any[] | undefined) =>
+      old ? old.map((row) => (row.id === rowId ? { ...row, card } : row)) : old
+    );
+    const { error } = await supabase.from("roster").update({ card }).eq("id", rowId);
+    if (error) {
+      toast.error("Failed to update card: " + error.message);
+    } else {
+      toast.success(card ? `Card set to ${card}` : "Card cleared");
+    }
+    qc.invalidateQueries({ queryKey: ["all-upcoming-roster"] });
+    qc.invalidateQueries({ queryKey: ["upcoming-roster-me"] });
+  };
 
 
 
@@ -254,13 +293,40 @@ function RosterViewPage() {
 
 
         <TabsContent value="current" className="mt-4 space-y-4">
-          <RosterList grouped={groups.current} loading={q.isLoading} emptyMsg="No roster published for this week yet." />
+          <RosterList
+            grouped={groups.current}
+            loading={q.isLoading}
+            emptyMsg="No roster published for this week yet."
+            isAdmin={isAdmin}
+            cardOptions={cardOptions}
+            onAddCard={addCard}
+            onUpdateTalkback={handleUpdateTalkback}
+            onUpdateCard={handleUpdateCard}
+          />
         </TabsContent>
         <TabsContent value="upcoming" className="mt-4 space-y-4">
-          <RosterList grouped={groups.upcoming} loading={q.isLoading} emptyMsg="No upcoming rosters published." />
+          <RosterList
+            grouped={groups.upcoming}
+            loading={q.isLoading}
+            emptyMsg="No upcoming rosters published."
+            isAdmin={isAdmin}
+            cardOptions={cardOptions}
+            onAddCard={addCard}
+            onUpdateTalkback={handleUpdateTalkback}
+            onUpdateCard={handleUpdateCard}
+          />
         </TabsContent>
         <TabsContent value="previous" className="mt-4 space-y-4">
-          <RosterList grouped={groups.previous} loading={q.isLoading} emptyMsg="No previous rosters." />
+          <RosterList
+            grouped={groups.previous}
+            loading={q.isLoading}
+            emptyMsg="No previous rosters."
+            isAdmin={isAdmin}
+            cardOptions={cardOptions}
+            onAddCard={addCard}
+            onUpdateTalkback={handleUpdateTalkback}
+            onUpdateCard={handleUpdateCard}
+          />
         </TabsContent>
         <TabsContent value="archive" className="mt-4 space-y-4">
           <RosterArchiveCalendar rows={rows} loading={q.isLoading} />
@@ -275,7 +341,7 @@ function RosterViewPage() {
 function downloadRosterCsv(rows: any[]) {
   if (rows.length === 0) { toast.error("Nothing to download yet"); return; }
   const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const header = ["Date", "Service", "Role", "Camera", "Name", "Username", "Frame / Notes"];
+  const header = ["Date", "Service", "Role", "Camera", "Talkback", "Card", "Name", "Username", "Frame / Notes"];
   const body = [...rows]
     .sort((a, b) => a.service_date.localeCompare(b.service_date))
     .map((r) => [
@@ -283,6 +349,8 @@ function downloadRosterCsv(rows: any[]) {
       serviceLabel(r.service_type),
       r.role,
       r.camera ?? "",
+      r.talkback ?? "",
+      r.card ?? "",
       r.profiles?.full_name ?? "Unassigned",
       r.profiles?.username ?? "",
       r.notes ?? "",
@@ -306,7 +374,25 @@ function groupByService(rows: any[]) {
   return g;
 }
 
-function RosterList({ grouped, loading, emptyMsg }: { grouped: Record<string, any[]>; loading: boolean; emptyMsg: string }) {
+function RosterList({
+  grouped,
+  loading,
+  emptyMsg,
+  isAdmin = false,
+  cardOptions = [],
+  onAddCard,
+  onUpdateTalkback,
+  onUpdateCard,
+}: {
+  grouped: Record<string, any[]>;
+  loading: boolean;
+  emptyMsg: string;
+  isAdmin?: boolean;
+  cardOptions?: string[];
+  onAddCard?: (name: string) => Promise<string | void>;
+  onUpdateTalkback?: (rowId: string, val: string | null) => Promise<void>;
+  onUpdateCard?: (rowId: string, val: string | null) => Promise<void>;
+}) {
   if (loading) return <div className="text-sm text-muted-foreground">Loading roster…</div>;
   const keys = Object.keys(grouped);
   if (keys.length === 0)
@@ -341,6 +427,8 @@ function RosterList({ grouped, loading, emptyMsg }: { grouped: Record<string, an
                       <TableHead>Role</TableHead>
                       <TableHead>Camera</TableHead>
                       <TableHead>Assigned</TableHead>
+                      <TableHead className="min-w-[105px]">Talkback</TableHead>
+                      <TableHead className="min-w-[135px]">Card</TableHead>
                       <TableHead>Frame / Notes</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -350,6 +438,28 @@ function RosterList({ grouped, loading, emptyMsg }: { grouped: Record<string, an
                         <TableCell className="font-medium">{r.role}</TableCell>
                         <TableCell><Badge variant="outline">{r.camera ?? "—"}</Badge></TableCell>
                         <TableCell>{r.profiles?.full_name || <span className="text-muted-foreground">Unassigned</span>}</TableCell>
+                        <TableCell>
+                          {isAdmin && onUpdateTalkback ? (
+                            <TalkbackSelect
+                              value={r.talkback}
+                              onChange={(val) => onUpdateTalkback(r.id, val)}
+                            />
+                          ) : (
+                            <TalkbackBadge value={r.talkback} />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isAdmin && onUpdateCard && onAddCard ? (
+                            <CardSelect
+                              value={r.card}
+                              cardOptions={cardOptions}
+                              onAddCard={onAddCard}
+                              onChange={(val) => onUpdateCard(r.id, val)}
+                            />
+                          ) : (
+                            <CardBadge value={r.card} />
+                          )}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.notes ?? ""}</TableCell>
                       </TableRow>
                     ))}
@@ -435,6 +545,8 @@ function RosterArchiveCalendar({ rows, loading }: { rows: any[]; loading: boolea
                       <TableHead>Service</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Camera</TableHead>
+                      <TableHead>Talkback</TableHead>
+                      <TableHead>Card</TableHead>
                       <TableHead>Assigned</TableHead>
                       <TableHead className="hidden md:table-cell">Frame / Notes</TableHead>
                     </TableRow>
@@ -450,6 +562,12 @@ function RosterArchiveCalendar({ rows, loading }: { rows: any[]; loading: boolea
                           {r.camera && r.camera !== "—"
                             ? <Badge className="bg-warning/15 font-semibold text-warning hover:bg-warning/15">{r.camera}</Badge>
                             : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell>
+                          <TalkbackBadge value={r.talkback} />
+                        </TableCell>
+                        <TableCell>
+                          <CardBadge value={r.card} />
                         </TableCell>
                         <TableCell>
                           {r.profiles?.full_name

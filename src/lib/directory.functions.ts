@@ -18,7 +18,7 @@ export type DirectoryMember = {
  */
 export const getMemberDirectory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { ids?: string[] } | undefined) => data ?? {})
+  .validator((data: { ids?: string[] } | undefined) => data ?? {})
   .handler(async ({ data, context }): Promise<DirectoryMember[]> => {
     const client = (context as any)?.supabase;
     let found: DirectoryMember[] = [];

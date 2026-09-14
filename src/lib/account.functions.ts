@@ -6,7 +6,7 @@ const DOMAIN = "saft.local";
 /** Let the signed-in member/admin change their own username (synthetic email + profile). */
 export const changeMyUsername = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { username: string }) => data)
+  .validator((data: { username: string }) => data)
   .handler(async ({ data, context }) => {
     const username = (data.username ?? "").trim().toLowerCase();
     if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
@@ -40,7 +40,7 @@ export const changeMyUsername = createServerFn({ method: "POST" })
 /** Let the signed-in user set their own password (any password, min 6 chars). */
 export const changeMyPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { new_password: string }) => data)
+  .validator((data: { new_password: string }) => data)
   .handler(async ({ data, context }) => {
     if (!data.new_password || data.new_password.length < 6) {
       throw new Error("Password must be at least 6 characters");
@@ -56,7 +56,7 @@ export const changeMyPassword = createServerFn({ method: "POST" })
 
 export const claimAdminRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { access_key: string }) => data)
+  .validator((data: { access_key: string }) => data)
   .handler(async ({ data, context }) => {
     const key = (data.access_key ?? "").trim();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -86,7 +86,7 @@ export const claimAdminRole = createServerFn({ method: "POST" })
  */
 export const clearMyNotifications = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data?: { id?: string }) => data ?? {})
+  .validator((data?: { id?: string }) => data ?? {})
   .handler(async ({ data, context }) => {
     const userId = (context as any).userId;
     if (!userId) throw new Error("Unauthorized");

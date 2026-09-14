@@ -50,7 +50,7 @@ const DOMAIN = "saft.local";
 
 export const adminCreateMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: {
+  .validator((data: {
     username: string; password: string; full_name?: string;
     phone?: string; role_title?: string; seniority?: string | null;
   }) => data)
@@ -78,7 +78,7 @@ export const adminCreateMember = createServerFn({ method: "POST" })
 
 export const adminResetPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { user_id: string; new_password: string }) => data)
+  .validator((data: { user_id: string; new_password: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureAdmin(context);
     if (!data.new_password || data.new_password.length < 6) throw new Error("Password must be at least 6 characters");
@@ -91,7 +91,7 @@ export const adminResetPassword = createServerFn({ method: "POST" })
 
 export const adminUpdateMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: {
+  .validator((data: {
     user_id: string; full_name?: string; phone?: string | null;
     role_title?: string | null; is_active?: boolean; photo_url?: string | null;
     seniority?: string | null;
@@ -113,7 +113,7 @@ export const adminUpdateMember = createServerFn({ method: "POST" })
 
 export const adminDeleteMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { user_id: string }) => data)
+  .validator((data: { user_id: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -124,7 +124,7 @@ export const adminDeleteMember = createServerFn({ method: "POST" })
 
 export const adminSetAdminRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { user_id: string; make_admin: boolean }) => data)
+  .validator((data: { user_id: string; make_admin: boolean }) => data)
   .handler(async ({ data, context }) => {
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -188,7 +188,7 @@ export const adminSeedPreloaded = createServerFn({ method: "POST" })
 /** Share a saved MPZ checklist with selected members/admins (also notifies them). */
 export const shareChecklist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { service_id: string; recipient_ids: string[] }) => data)
+  .validator((data: { service_id: string; recipient_ids: string[] }) => data)
   .handler(async ({ data, context }) => {
     await ensureAdmin(context);
     if (!data.recipient_ids?.length) throw new Error("Pick at least one recipient");
@@ -246,7 +246,7 @@ export const shareChecklist = createServerFn({ method: "POST" })
  */
 export const adminWipeTestData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { rosters: boolean; checklists: boolean; attendance?: boolean }) => data)
+  .validator((data: { rosters: boolean; checklists: boolean; attendance?: boolean }) => data)
   .handler(async ({ data, context }) => {
     const { data: roles, error: rErr } = await (context as any).supabase
       .from("user_roles")

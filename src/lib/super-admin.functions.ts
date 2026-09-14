@@ -56,7 +56,7 @@ const DEFAULT_PW = "12345678";
 
 export const saCreateTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { name: string; slug: string; description?: string }) => data)
+  .validator((data: { name: string; slug: string; description?: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -74,7 +74,7 @@ export const saCreateTeam = createServerFn({ method: "POST" })
 
 export const saUpdateTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { id: string; name?: string; description?: string | null; is_active?: boolean }) => data)
+  .validator((data: { id: string; name?: string; description?: string | null; is_active?: boolean }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -91,7 +91,7 @@ export const saUpdateTeam = createServerFn({ method: "POST" })
 
 export const saDeleteTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { id: string }) => data)
+  .validator((data: { id: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -107,7 +107,7 @@ export const saDeleteTeam = createServerFn({ method: "POST" })
 
 export const saCreateTeamAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { full_name: string; email: string; phone?: string; team_id: string }) => data)
+  .validator((data: { full_name: string; email: string; phone?: string; team_id: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -147,7 +147,7 @@ export const saCreateTeamAdmin = createServerFn({ method: "POST" })
 
 export const saCreateMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { full_name: string; email: string; phone?: string; team_id: string }) => data)
+  .validator((data: { full_name: string; email: string; phone?: string; team_id: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -176,7 +176,7 @@ export const saCreateMember = createServerFn({ method: "POST" })
 
 export const saUpdateUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: {
+  .validator((data: {
     user_id: string;
     full_name?: string;
     phone?: string | null;
@@ -208,7 +208,7 @@ export const saUpdateUser = createServerFn({ method: "POST" })
 
 export const saResetPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { user_id: string; new_password?: string }) => data)
+  .validator((data: { user_id: string; new_password?: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -223,7 +223,7 @@ export const saResetPassword = createServerFn({ method: "POST" })
 
 export const saSetAdminRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { user_id: string; make_admin: boolean }) => data)
+  .validator((data: { user_id: string; make_admin: boolean }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -254,7 +254,7 @@ export const saSetAdminRole = createServerFn({ method: "POST" })
 
 export const saSetSuperAdminRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { user_id: string; make_super_admin: boolean }) => data)
+  .validator((data: { user_id: string; make_super_admin: boolean }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     if (data.user_id === (context as any).userId && !data.make_super_admin) {
@@ -289,7 +289,7 @@ export const saSetSuperAdminRole = createServerFn({ method: "POST" })
 export const saDeleteUser = createServerFn({ method: "POST" })
 
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { user_id: string }) => data)
+  .validator((data: { user_id: string }) => data)
   .handler(async ({ data, context }) => {
     await ensureSuperAdmin(context);
     if (data.user_id === (context as any).userId) throw new Error("You cannot delete yourself");
